@@ -1,0 +1,34 @@
+input.bLeft{
+	background-image: url('images/buttons/arrowOutlineL.jpg');
+	background-size: 100%;
+	background-repeat: no-repeat;
+	min-width: 5ch;
+	/*background-color: #3C455C; */
+	color: white;
+}
+
+input.bRight{
+	background-image: url('images/buttons/arrowOutlineR.jpg');
+	background-size: 100%;
+	background-repeat: no-repeat;
+	min-width: 5ch;
+	/*background-color: #3C455C; */
+	color: white;
+}
+
+
+input.myBtn{
+	background-color: #3C455C;
+	color:#FFFFFF;
+}
+
+
+input.myBtn:hover{
+    color: #FFFFFA;
+}
+
+.ow {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  hyphens: none;
+}
