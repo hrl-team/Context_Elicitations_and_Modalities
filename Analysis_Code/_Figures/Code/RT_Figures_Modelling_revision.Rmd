@@ -1,0 +1,261 @@
+---
+title: "Figures: Modelling"
+output: html_document
+params:
+  data_path: D:\Magdalena\Projects\Retrospective Theory\RT_Analysis\Retrospective-Theory\data_RT_Anon_25.Rds
+  fits: D:\Magdalena\Projects\Retrospective Theory\RT_Analysis\Retrospective-Theory\fits_relative_best.Rds
+  sims: D:\Magdalena\Projects\Retrospective Theory\RT_Analysis\Retrospective-Theory\sims_relative.Rds
+  rec:  D:\Magdalena\Projects\Retrospective Theory\RT_Analysis\Retrospective-Theory\recovery_Relative_Final_25.Rds
+  palette_fals: !r c("#076d7e", "#F9AC00")
+editor_options:
+  chunk_output_type: console
+---
+Here are the figures for the modelling section of the Supplementary Material (Fig.9-11).
+
+```{r Load Packages,include=FALSE, message=FALSE,warning=FALSE}
+library(data.table)
+library(tidyverse)
+library(extrafont)
+library(ggpubr)
+library(ggh4x)
+library(patchwork)
+loadfonts()
+```
+
+```{r get Data,include=FALSE, message=FALSE,warning=FALSE}
+data<-readRDS(params$data_path)
+fits<-readRDS(params$fits)
+sims<-readRDS(params$sims)
+rec<-readRDS(params$rec)
+```
+
+```{r graph settings,include=FALSE, message=FALSE,warning=FALSE, echo=FALSE}
+
+ss.col.viol <- "gray70"
+ref.col <- "#BF4E30" 
+
+shared.graph.settings<-
+  list(
+     stat_summary(fun.data = "mean_se", geom = "bar",fun.args = list(mult = 1),position=position_dodge(width=0.5),fill="gray80"),
+    stat_summary(fun.data = "mean_se", geom = "errorbar",fun.args = list(mult = 1),size=1,width=0.3, position=position_dodge(width=0.5)),
+    ylim(0,1),
+    theme_classic(base_family = "Calibri Light",base_size = 25),
+    facet_grid(TaskName~expType,labeller = labeller(TaskName=c(LearningTask="Learning",
+                                                              Preference="Preference"))),
+    theme(panel.background = element_rect(fill = "white", colour = "black"),
+          legend.position = "bottom",
+          strip.background = element_blank(),
+          strip.text = element_text(hjust = 0)))
+
+```
+
+### Fig9: Falsification
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+  # -----------------------------------------------------------
+  # Choice Rate - Learning Task + Preference Task
+  # -----------------------------------------------------------
+  # process real data 
+  real.zigzag<-
+    bind_rows(data$learning,data$preference)%>% 
+    filter(!expType%in%c("E4","E5")) %>% 
+    mutate(model = c(".Real Data")) %>% 
+    ungroup() %>% 
+    select(partID,expType,symID_ch,symID_u,model,TaskName) %>% 
+    pivot_longer(cols = c(symID_ch,symID_u),
+                 names_to=c(".value","chosen"),names_sep = "([_])") %>% 
+    mutate(was_chosen_numeric = ifelse(chosen == "ch", 1,0)) %>% 
+    group_by(partID,expType,model,symID,TaskName) %>% 
+    summarise(prop.chosen=mean(was_chosen_numeric))%>% 
+    mutate(expType=factor(expType,levels=c("E1","E2","E3","E4","E5","E6","E7")))
+  
+  # process simulated data 
+  sim.zigzag<-
+    bind_rows(sims)%>% 
+    mutate(model=factor(model,levels=c("abs","rel"),
+                labels=c("Absolute","Relative"))) %>% 
+    ungroup() %>% 
+    select(partID,expType,symID_ch,symID_u,model,TaskName) %>% 
+    pivot_longer(cols = c(symID_ch,symID_u),
+                 names_to=c(".value","chosen"),names_sep = "([_])") %>% 
+    mutate(was_chosen_numeric = ifelse(chosen == "ch", 1,0)) %>%
+    group_by(partID,expType,model,symID,TaskName) %>% 
+    summarise(prop.chosen=mean(was_chosen_numeric))%>% 
+    mutate(expType=factor(expType,levels=c("E1","E2","E3","E4","E5","E6","E7"))) 
+  
+  # plot - learning task only
+  f1A<- ggplot(aes(x=factor(symID,levels=c(1,2,3,4,5,6,7,8),labels=c("A","B","C","D","E","F","G","H")),y=prop.chosen),
+               data=real.zigzag %>% filter(TaskName=="LearningTask"))+
+    shared.graph.settings+
+    stat_summary(fun.data = "mean_se", geom = "point",fun.args = list(mult = 1),position=position_dodge(width=0.5),data=sim.zigzag%>%filter(TaskName=="LearningTask"),
+                 aes(color=model),size=3.5)+
+    xlab("") + ylab("Choice Rate")+
+    scale_color_manual(values=params$palette_fals)
+  
+  # plot - preference task only
+  f1B<- ggplot(aes(x=factor(symID,levels=c(1,2,3,4,5,6,7,8),labels=c("A","B","C","D","E","F","G","H")),
+                   y=prop.chosen),data=real.zigzag %>% filter(TaskName=="Preference"))+
+    shared.graph.settings+
+    stat_summary(fun.data = "mean_se", geom = "point",fun.args = list(mult = 1),position=position_dodge(width=0.5),data=sim.zigzag %>% filter(TaskName=="Preference"),
+                 aes(color=model),size=3.5,show.legend = FALSE)+
+    xlab("") + ylab("Choice Rate")+
+    scale_color_manual(values=params$palette_fals)
+
+  # -----------------------------------------------------------
+  # FIG 4: Preference Task: Choice Set Accuracy
+  # -----------------------------------------------------------
+  
+  # Define Choice Sets (from real data)
+  context <-
+    bind_rows(data$preference)%>% 
+    filter(!expType%in%c("E4","E5")) %>% 
+    ungroup() %>% 
+    distinct(TaskName,ChoiceType.f,relative,expType) %>% 
+    mutate(ChoiceType = ChoiceType.f)%>% 
+    mutate(expType=factor(expType,levels=c("E1","E2","E3","E4","E5","E6","E7")))
+  
+  # process real data 
+  acc2 <-
+    bind_rows(data$preference) %>% 
+    filter(!expType%in%c("E4","E5")) %>% 
+    mutate(model = c(".RealData"),
+           ChoiceType = as.factor(ChoiceType.f)) %>% 
+    ungroup() %>% 
+    group_by(partID,expType, TaskName,model,relative) %>% 
+    summarise(accuracy=mean(resp.cor,na.rm=TRUE))%>% 
+    mutate(expType=factor(expType,levels=c("E1","E2","E3","E4","E5","E6","E7")))
+  
+  # process simulated data (Adds Choice Sets variable!)
+  sim.acc2<-
+    sims %>% 
+    bind_rows(sims)%>% 
+    mutate(model=factor(model,levels=c("abs","rel"),
+                labels=c("Absolute","Relative"))) %>% 
+    filter(TaskName=="Preference") %>% 
+    merge(.,context,by=c("ChoiceType","TaskName","expType")) %>% 
+    ungroup() %>% 
+    mutate(partID=as.character(partID.or)) %>% 
+    group_by(partID,expType, TaskName,model,relative) %>% 
+    summarise(accuracy=mean(resp.cor,na.rm=TRUE))%>% 
+    mutate(expType=factor(expType,levels=c("E1","E2","E3","E4","E5","E6","E7")))
+  
+  # plot 
+  f2<- ggplot(aes(x=relative,y=accuracy),data=acc2)+
+    shared.graph.settings+
+    stat_summary(fun.data = "mean_se", geom = "point",fun.args = list(mult = 1),position=position_dodge(width=0.5),data=sim.acc2,aes(color=model),size=3.5,show.legend = FALSE)+
+    scale_color_manual(values=params$palette_fals)+
+    xlab("") + ylab("EV-maximising choices")+
+    scale_x_discrete(limits = c("Old", "New_1", "New_2", "New_3"),labels = c("Old","New1","New2","New3"))
+ 
+  # -----------------------------------------------------------
+  # Compile the plots into one big figure + list of individual plots
+  # ----------------------------------------------------------- 
+  f.falsify <- f1A+plot_spacer()+f1B+plot_spacer()+f2 + patchwork::plot_layout(nrow = 5,heights=c(5,-1.5,5,-1.5,5),guides = "collect") & theme(legend.position = "bottom")
+  
+
+``` 
+
+```{r,fig.height=10.5,fig.width=18, dpi=300, out.width="100%", message=FALSE, warning=FALSE, echo=FALSE,dev = 'png'}
+f.falsify
+```
+
+### Fig 10: Model Recovery
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Confusion Matrix
+confusion.simple<-
+  bind_rows(rec$best_fits) %>% 
+  select(expType,partID,model,AIC,data.source) %>% 
+  mutate(real = data.source) %>% 
+  mutate(recovered = model) %>% 
+  mutate(across(c(real,recovered),~ifelse(.x=="abs","Absolute","Relative"))) %>% 
+  group_by(partID,expType,real) %>% 
+  mutate(best.AIC = min(AIC),
+         is.best = ifelse(AIC==best.AIC,1,0)) %>% 
+  filter(is.best==1) %>% 
+  group_by(real,recovered,.drop = FALSE) %>%
+  summarise(n=n()) %>% 
+  group_by(real) %>% 
+  mutate(perc=round(n/sum(n),3)) %>% 
+  arrange(real,recovered) %>% 
+  mutate(type="Confusion Matrix")
+
+# Inversion Matrix
+inversion.simple<-
+  bind_rows(rec$best_fits) %>% 
+  select(expType,partID,model,AIC,data.source) %>% 
+  mutate(real = data.source) %>% 
+  mutate(recovered = model) %>% 
+  mutate(across(c(real,recovered),~ifelse(.x=="abs","Absolute","Relative"))) %>% 
+  group_by(partID,real) %>% 
+  mutate(best.AIC = min(AIC),
+         is.best = ifelse(AIC==best.AIC,1,0)) %>% 
+  filter(is.best==1) %>% 
+  group_by(real,recovered,.drop = FALSE) %>%
+  summarise(n=n()) %>% 
+  group_by(recovered) %>% 
+  mutate(perc=round(n/sum(n),3)) %>% 
+  arrange(real,recovered) %>% 
+  mutate(type="Inversion Matrix")
+
+f.model.rec<-
+  ggplot(aes(x=recovered,y=real,fill=perc),data=bind_rows(confusion.simple,inversion.simple))+geom_tile()+
+    geom_label(color="white",aes(label=perc),label.size = 0,size=8)+
+    xlab("recovered model")+ylab("generative model")+
+    theme_classic(base_family = "Calibri Light",base_size = 25) + 
+    theme(panel.background = element_rect(fill = "white", colour = "black"),
+          legend.position = "none",
+          strip.background = element_blank(),
+          strip.text = element_text(hjust = 0)) +
+    facet_wrap(~type)
+```
+
+```{r,fig.height=8,fig.width=18, dpi=300, out.width="100%", message=FALSE, warning=FALSE, echo=FALSE,dev = 'png'}
+f.model.rec
+```
+
+
+### Explicit Recollection: Probability
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+df.sims<-
+  bind_rows(rec$sims[[2]]) %>%
+  distinct(beta,lr_a,w,partID,model) %>% 
+  pivot_longer(cols=c(beta,lr_a,w),names_to = "parameter", values_to = "real")
+
+# process recovered parameter values
+df.fits<- 
+  bind_rows(rec$best_fits[[2]]) %>% 
+  mutate(partID=as.numeric(partID)) %>% 
+  pivot_longer(cols=c(beta,lr_a,w),names_to = "parameter", values_to = "recovered") %>% 
+  merge(.,df.sims,by=c("partID","parameter")) 
+
+# plot
+f.par.rec<-
+  ggplot(aes(x=real,y=recovered),data=df.fits %>% 
+         mutate(parameter = factor(parameter, levels=c('beta', 'lr_a','w'))))+
+  geom_point(alpha=0.4)+
+  ggh4x::facet_grid2(parameter~expType,scales = "free", independent = "x",axes="all")+
+  geom_abline(slope=1)+
+  geom_smooth(method="lm",se = FALSE,fullrange=TRUE,color="#0B889D")+
+  theme_classic(base_family = "Calibri Light",base_size = 25)+
+  theme(panel.background = element_rect(fill = "white", colour = "black"),
+          legend.position = "bottom",
+          strip.background = element_blank(),
+          strip.text = element_text(hjust = 0))+
+  ggh4x::facetted_pos_scales(
+    y = list(
+      parameter %in% c("beta") ~ scale_y_continuous(limits = c(0, 10),breaks=c(0,5,10)),
+      parameter %in% c("w") ~ scale_y_continuous(limits = c(0, 1),breaks=c(0,0.5,1)),
+      parameter %in% c("lr_a") ~ scale_y_continuous(limits = c(0, 1),breaks=c(0,0.5,1))
+    ),
+    x = list(
+      parameter %in% c("beta") ~ scale_x_continuous(limits = c(0, 10),breaks=c(0,5,10)),
+      parameter %in% c("w") ~ scale_x_continuous(limits = c(0, 1),breaks=c(0,0.5,1)),
+      parameter %in% c("lr_a") ~ scale_x_continuous(limits = c(0, 1),breaks=c(0,0.5,1))
+    )
+  )+
+  ggpubr::stat_cor(color="#0B889D",r.digits = 3,p.accuracy = 0.001,size = 5.8)+
+  xlab("Real Value")+ylab("Recovered Value")
+```
+
+```{r,fig.height=10.5,fig.width=18, dpi=300, out.width="100%", message=FALSE, warning=FALSE, echo=FALSE,dev = 'png'}
+f.par.rec
+```

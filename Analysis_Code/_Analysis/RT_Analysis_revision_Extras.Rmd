@@ -1,0 +1,212 @@
+---
+title: "Results - Supplementary Analyses"
+output: html_document
+params:
+  data_path: "D:\\Magdalena\\Projects\\Retrospective Theory\\RT_Analysis\\Retrospective-Theory\\data_RT_Anon_25.Rds"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r Load Packages,include=FALSE}
+# models
+library(mgcv)
+library(afex)
+library(glmmTMB)
+library(emmeans)
+
+# model diagnostics
+library(DHARMa)
+library(performance)
+
+# data manipulation
+library(broom)
+library(tidyverse)
+```
+
+```{r Load Data,include=FALSE}
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# CAREFUL CODE USES CACHE:
+# If data file has been modified, it's necessary to clean cache
+# --> Otherwise parts of the code might not be updated
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+data<-readRDS(params$data_path)
+```
+
+```{r define functions,include=FALSE, cache = TRUE}
+### SETS CONTRASTS GLOBALLY TO CONTR.SUM (makes it easy to interpret main effect vs interaction)
+set_sum_contrasts()
+```
+
+# Recolection (E3-E7) separate
+## Valence {.tabset}
+Specific Analyses - E3-E7: Explicit Recollection:
+```{r E3-E7 - Value Recollection Task Deconstructed, warning=FALSE, message=FALSE, cache=TRUE}
+# Outcome magnitude
+val.valence<-list()
+
+val.valence$data <-
+  data$valuation %>% 
+  filter(!expType%in%c("E1","E2")) %>% 
+  mutate(sym_valence = ifelse(sym_reward<0,"negative","positive"),
+         resp_valence = ifelse(resp_rew<0,"negative","positive"),
+         sym_magnitude = ifelse(abs(sym_reward)==10,"small","big"),
+         sym_prob = ifelse(abs(sym_prob)==25,"smallProb","bigProb"),
+         sym_relative = case_when(expType!="E6"&symID.f%in%c("B","D")~"sym_BG",
+          expType=="E6"&symID.f%in%c("C","D")~"sym_BG",
+          expType!="E6"&symID.f%in%c("A","C")~"sym_BB",
+          expType=="E6"&symID.f%in%c("A","B")~"sym_BB",
+          expType!="E6"&symID.f%in%c("E","G")~"sym_GB",
+          expType=="E6"&symID.f%in%c("E","F")~"sym_GB",
+          expType!="E6"&symID.f%in%c("F","H")~"sym_GG",
+          expType=="E6"&symID.f%in%c("G","H")~"sym_GG"))
+                                
+
+val.valence$glm<- afex::mixed(resp_valence ~ expType*Day.f*sym_relative  + (1|partID),
+                              data=val.valence$data,family="binomial", method="LRT", 
+                              control=glmerControl(optimizer="bobyqa",optCtrl = list(maxfun = 100000)))
+```
+
+### Main Effects
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+print(val.valence$glm)
+```
+
+### Contrasts & Marginal Means
+```{r warning=FALSE, message=FALSE}
+emmeans::emmeans(val.valence$glm,"trt.vs.ctrl"~expType|sym_relative,adjust="mvt",type="response",
+                 at=list(Day.f=c("1")))
+
+emmeans::emmeans(val.valence$glm,"consec"~sym_relative|expType,adjust="mvt",type="response",
+                 at=list(Day.f=c("1")))
+
+emmeans::emmeans(val.valence$glm,~sym_relative|expType,type="response",
+                 at=list(Day.f=c("1"))) %>% 
+  contrast(., interaction = c(expType = "trt.vs.ctrl", sym_relative= "consec"),
+                   by = NULL, adjust="mvt",type="response")
+```
+
+### Diagnostics
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+DHARMa::simulateResiduals(val.valence$glm$full_model) %>% plot()
+```
+
+## Probability Vs Valence error {.tabset}
+```{r E3-E7 - Probability, warning=FALSE, message=FALSE, cache=TRUE}
+# Probability
+val.probability<-list()
+
+val.probability$glm<- afex::mixed(resp_probCor_i~expType*val_error*Day.f+(1|partID),
+                                 data= data$valuation %>%
+                                       filter(!expType%in%c("E1","E2")) %>%
+                                       mutate(val_error = ifelse(sign(resp_rew)!=sign(sym_reward),
+                                                                 "wrong_valence","correct_valence"),
+                                              resp_valence = ifelse(resp_rew<0,"negative","positive"),
+                                              Day.f = as.factor(Day)),
+                                  family="binomial", method="LRT", 
+                                  control=glmerControl(optimizer="bobyqa",optCtrl = list(maxfun = 100000)))
+```                               
+
+### Main Effects
+``````{r warning=FALSE, message=FALSE, echo=FALSE}
+print(val.probability$glm)
+```
+
+### Contrasts
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+emmeans::emmeans(val.probability$glm,"trt.vs.ctrl"~as.factor(val_error)|expType,adjust="mvt",type="response",
+                 at=list(Day.f=c("1")))
+
+emmeans::emmeans(val.probability$glm,"trt.vs.ctrl"~as.factor(val_error),adjust="mvt",type="response",
+                 at=list(Day.f=c("1")))
+```                               
+
+### Diagnostics
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+DHARMa::simulateResiduals(val.probability$glm$full_model) %>% plot()
+```                               
+
+
+## Probability - Response Distribuion {.tabset}
+```{r, warning=FALSE, message=FALSE, cache=TRUE}
+table.median <- 
+  data$valuation %>%
+  filter(expType%in%c("E3","E6","E7")) %>% 
+  mutate(resp_prob = as.numeric(resp_prob)) %>% 
+  group_by(expType,Day,sym_prob) %>% 
+  summarise(median=median(resp_prob),
+            HD_low = HDInterval::hdi(resp_prob,credMass = 0.5)[1],
+            HD_high = HDInterval::hdi(resp_prob,credMass = 0.5)[2]) %>% 
+  arrange(Day)
+
+```                               
+
+### Stuff
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+knitr::kable(table.median )
+```
+
+## Probability Precision{.tabset}
+```{r, warning=FALSE, message=FALSE, cache=TRUE}
+# Probabiltiy Precision
+# ---- prepare files ---------------------------
+learn.test<-
+  data$learning %>% 
+  filter(!expType%in%c("E1","E2")) %>% 
+  pivot_longer(cols = c(sym_ch,symID_ch,prob_ch,rew_ch,loss_ch,ran_ch,outcome_ch,
+                        sym_u,symID_u,prob_u,rew_u,loss_u,ran_u,outcome_u),
+               names_to=c(".value","chosen"),names_sep = "([_])") %>% 
+  mutate(outcome.0 = ifelse(outcome==0,0,1)) %>% 
+  group_by(expType,partID,symID,prob) %>% 
+  summarise(M = mean(outcome.0)) %>% 
+  mutate(M = round(100*M,0),
+         M = ifelse(expType%in%c("E4","E5"),prob,M), 
+         M_inv = 100-M) 
+
+prob.test<-
+  data$valuation %>% 
+  filter(!expType%in%c("E1","E2")) %>% 
+  merge(.,learn.test,by=c("expType","partID","symID")) %>% 
+  mutate(ch_real = case_when(#expType%in%c("E4","E5")&resp_prob%in%c(25,75)~1,
+                             #!expType%in%c("E4","E5")&abs(M-resp_prob)<=5~1,
+                             #!expType%in%c("E4","E5")&abs(M_inv-resp_prob)<=5~1,
+                             abs(M-resp_prob)<=5~1,
+                              abs(M_inv-resp_prob)<=5~1,
+                             TRUE~0))
+
+
+test.glm <- afex::mixed(ch_real~expType*Day.f+(1|partID),
+                                  data= prob.test %>% 
+                                    mutate(Day.f = as.factor(Day)),
+                                  family="binomial", method="LRT", 
+                                  control=glmerControl(optimizer="bobyqa",optCtrl = list(maxfun = 100000)))
+```                               
+
+
+### Mean + SD
+```{r warning=FALSE, message=FALSE, echo=TRUE}
+prob.test %>% group_by(partID,expType,Day.f) %>% 
+  summarise(Mp=mean(ch_real)) %>% 
+  mutate(expGroup = ifelse(expType%in%c("E4","E5"),"desc","exp")) %>% 
+  group_by(expGroup,Day.f) %>% 
+  summarise(M=mean(Mp),
+            sd=sd(Mp))
+```                               
+
+### Contrasts
+```{r warning=FALSE, message=FALSE, echo=TRUE}
+em.p <- emmeans::emmeans(test.glm ,~expType|Day.f,adjust="mvt",type="response")
+exp = c(1, 0, 0, 1, 1)
+desc = c(0, 1, 1, 0, 0)
+
+contrast(em.p , method = list(desc-exp),at=list(Day.f=c("1")))
+
+emmeans::emmeans(test.glm ,"trt.vs.ctrl"~expType,adjust="mvt",type="response",
+                 at=list(Day.f=c("1")))
+```
+
+### Diagnostics
+```{r warning=FALSE, message=FALSE, echo=TRUE}
+DHARMa::simulateResiduals(test.glm $full_model) %>% plot()
+
+``` 

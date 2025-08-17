@@ -1,0 +1,207 @@
+---
+title: "Results - Descriptives"
+output: html_document
+params:
+  data_path: "D:\\Magdalena\\Projects\\Retrospective Theory\\RT_Analysis\\Retrospective-Theory\\data_RT_Anon_25.Rds"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r Load Packages,include=FALSE}
+# models
+library(mgcv)
+library(afex)
+library(glmmTMB)
+library(emmeans)
+
+# model diagnostics
+library(DHARMa)
+library(performance)
+
+# data manipulation
+library(broom)
+library(tidyverse)
+```
+
+```{r Load Data,include=FALSE}
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# CAREFUL CODE USES CACHE:
+# If data file has been modified, it's necessary to clean cache
+# --> Otherwise parts of the code might not be updated
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+data<-readRDS(params$data_path)
+```
+
+```{r define functions,include=FALSE, cache = TRUE}
+mean_per_group <- function(df,exp,group_vars,sum_vars){
+  acc_overall <-
+    df %>% 
+    group_by(across({{group_vars}})) %>% 
+    summarise(across(any_of(sum_vars), list(mean = mean, sd = sd, sem = stderror))) %>% 
+    ungroup()
+}
+stderror <- function(x) sd(x)/sqrt(length(x))
+```
+
+## Demographics
+Summary table with the demographic data of the included participants
+```{r Demographics, cache = TRUE, include=FALSE, warning=FALSE, message=FALSE}
+# Demographic Table
+table<-
+  data$demo %>%
+  group_by(Day,expType) %>% 
+  mutate(n = n(),
+         nMale = sum(Sex=="Male",na.rm=TRUE),
+         nFemale = sum(Sex=="Female",na.rm=TRUE),
+         totalTime = totalTime/60000) %>% 
+  rename(payoff = rewardPounds) %>% 
+  group_by(Day,expType,nMale,nFemale,n) %>% 
+  summarise(across(c(age,payoff ,totalTime),list(mean=~mean(.x,na.rm=TRUE),sd=~sd(.x,na.rm=TRUE)))) %>% 
+  mutate(across(ends_with(c("mean","sd")),~signif(.x,digits=3)))
+```
+
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+knitr::kable(table)
+```
+
+---
+
+## Accuracy {.tabset}
+Accuracy across all three tasks, as well as a accuracy in reward/probability attribution for the explicit recollection task used in E3-E7.
+```{r Calculate Accuracy, cache = TRUE, include=FALSE, warning=FALSE, message=FALSE}
+# Accuracy per Participant
+# resp_rewCor and resp_probCor_i refer to correct reward/probability estimation in explicit valuation task from E3-E7
+acc.partID <- 
+  data[c("learning","preference","valuation")] %>% 
+  map(.,\(x) mean_per_group(filter(x,is.na(vals_on)|vals_on!=1),
+                            group_vars=c(partID,expType,Day,TaskName),
+                            sum_vars=c("resp.cor")) %>% 
+             mutate(mu = case_when(TaskName!="Valuation" ~ 0.5, 
+                            TaskName=="Valuation" & expType =="E1" ~ 0.2, 
+                            TRUE~0.125)))
+
+acc.partID$valuationRew<- 
+  data$valuation %>% 
+  filter(!expType%in%c("E1","E2")) %>% 
+  mutate(resp.cor = resp_rewCor) %>% 
+  mean_per_group(.,
+                 group_vars=c(partID,expType,Day,TaskName),
+                 sum_vars=c("resp.cor")) %>% 
+  mutate(mu = 0.25)
+
+acc.partID$valuationProb<- 
+  data$valuation %>% 
+  filter(!expType%in%c("E1","E2")) %>% 
+  mutate(resp.cor = resp_probCor_i) %>% 
+  mean_per_group(.,
+                 group_vars=c(partID,expType,Day,TaskName),
+                 sum_vars=c("resp.cor")) %>% 
+  mutate(mu = 0.5)
+
+# Accuracy per Experiment
+acc.expType<- 
+  acc.partID %>% 
+  map(.,\(x) 
+      mean_per_group(
+          x %>%  
+            rename(acc = resp.cor_mean,) %>% 
+            mutate(expType=factor(expType,levels=c("E1","E2","E3","E4","E5","E6","E7"))),
+          group_vars=c(expType,Day,TaskName),
+          sum_vars=c("acc"))%>% 
+      mutate(across(ends_with(c("mean","sd","sem")),~signif(.x,digits = 3))) %>% 
+      arrange(Day))
+```
+
+### Learning
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+knitr::kable(acc.expType$learning,  caption = "Learning")
+```
+### Preference
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+knitr::kable(acc.expType$preference,caption = "Preference")
+```
+### Value Recollection
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+knitr::kable(acc.expType$valuation, caption = "Value Recollection")
+```
+### Value Recollection - Prob Only
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+knitr::kable(acc.expType$valuationRew, caption = "Value Recollection:Probability Only (E3-E7)")
+```
+### Value Recollection - Rew Only
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+knitr::kable(acc.expType$valuationProb, caption = "Value Recollection:Magnitude Only (E3-E7)")
+```
+
+---
+
+## T-test {.tabset}
+One sample t-test: participant accuracy (resp.cor_mean) against the reference value (mu)
+```{r Accuracy vs chance level, cache = TRUE, include=FALSE, warning=FALSE, message=FALSE}
+# Calculate one sample t-test for each task and experiment -> save outputs into a dataframe
+ttest <- 
+  acc.partID %>% 
+  map(~ .x %>% 
+        mutate(expType=factor(expType,levels=c("E1","E2","E3","E4","E5","E6","E7"))) %>% 
+        group_by(expType,Day,mu) %>% 
+        do(broom::tidy(t.test(.$resp.cor_mean,mu=unique(.$mu)))) %>% 
+        mutate(across(c("estimate","p.value","statistic","conf.low","conf.high"),~signif(.x,digits = 3))) %>% 
+        arrange(Day))
+```
+### Learning
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+knitr::kable(ttest$learning,       caption = "Learning")
+```
+### Preference
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+knitr::kable(ttest$preference,     caption = "Preference")
+```
+### Value Recollection
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+knitr::kable(ttest$valuation,      caption = "Value Recollection")
+```
+### Value Recollection - Prob Only
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+knitr::kable(ttest$valuationProb,  caption = "Value Recollection:Probability Only (E3-E7)")
+```
+### Value Recollection - Rew Only
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+knitr::kable(ttest$valuationRew,   caption = "Value Recollection:Magnitude Only (E3-E7)")
+```
+
+---
+
+## Cohen's d {.tabset}
+```{r Cohens d, cache = TRUE, include=FALSE, warning=FALSE, message=FALSE}
+# Calculate one sample t-test for each task and experiment -> save outputs into a dataframe
+cohend <- 
+  acc.partID %>% 
+  map(~ .x %>% 
+        mutate(expType=factor(expType,levels=c("E1","E2","E3","E4","E5","E6","E7"))) %>% 
+        group_by(expType,Day,mu) %>% 
+        do(data.frame(cohen=lsr::cohensD(.$resp.cor_mean,mu=unique(.$mu)))) %>% 
+        arrange(Day))
+```
+
+### Learning
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+knitr::kable(cohend$learning,     digits = 3, caption = "Learning")
+```
+### Preference
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+knitr::kable(cohend$preference,   digits = 3, caption = "Preference")
+```
+### Value Recollection
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+knitr::kable(cohend$valuation,    digits = 3, caption = "Value Recollection")
+```
+### Value Recollection - Prob Only
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+knitr::kable(cohend$valuationProb,digits = 3, caption = "Value Recollection:Probability Only (E3-E7)")
+```
+### Value Recollection - Rew Only
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+knitr::kable(cohend$valuationRew, digits = 3, caption = "Value Recollection:Magnitude Only (E3-E7)")
+```
+

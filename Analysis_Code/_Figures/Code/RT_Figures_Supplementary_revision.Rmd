@@ -1,0 +1,307 @@
+---
+title: "Figures: Supplementary"
+output: html_document
+params:
+  data_path: D:\Magdalena\Projects\Retrospective Theory\RT_Analysis\Retrospective-Theory\data_RT_Anon.Rds
+  palette_8: !r c("#045361","#076d7e","#0B889D","#0E99B0","#fecd00","#FBBC00","#F9AC00","#f69b00")
+  palette_5: !r c("#045361","#0E99B0","gray85","#fecd00","#f69b00")
+  palette_4: !r c("#045361","#076d7e","#0B889D","#0E99B0","#fecd00","#FBBC00","#F9AC00","#f69b00")[c(1,3,6,8)]
+  palette_learn: !r c("gray50","gray50","gray50","#f69b00","#f69b00","#076d7e","#076d7e")
+editor_options:
+  chunk_output_type: console
+---
+Here is a list of figures used in the supplementary text (Fig.2-6).
+
+```{r Load Packages,include=FALSE, message=FALSE,warning=FALSE}
+library(data.table)
+library(tidyverse)
+library(extrafont)
+library(ggpubr)
+library(ggh4x)
+library(patchwork)
+loadfonts()
+```
+
+```{r get Data,include=FALSE, message=FALSE,warning=FALSE}
+data<-readRDS(params$data_path)
+```
+
+```{r graph settings,include=FALSE, message=FALSE,warning=FALSE, echo=FALSE}
+
+ss.col.viol <- "gray70"
+ref.col <- "#BF4E30" 
+
+shared.graph.settings.pref<-
+  list(
+  ggdist::stat_dots(color=ss.col.viol,position = position_nudge(x=+0.05),overflow="compress",layout = "bar", scale=7/10),
+  geom_boxplot(position=position_nudge(x=-0.20), width=0.3,outlier.shape = NA,lwd=1,color=ss.col.viol,fill="transparent"),
+  stat_summary(fun.data = "mean_se", geom = "point",fun.args = list(mult = 1),size=1.5,stroke=1.5),
+  stat_summary(fun.data = "mean_se", geom = "errorbar",fun.args = list(mult = 1),width=0.3,size=1.5),
+  theme_classic(base_family = "Calibri Light",base_size = 25),
+  theme(legend.position="none",
+        panel.background = element_rect(fill = "white", colour = "black"),
+        strip.background = element_blank(),
+        strip.text = element_text(hjust = 0)),
+  facet_wrap(~expType),
+  scale_y_continuous(expand = expansion(mult = .1)))
+
+shared.graph.settings.pref.noWrap<-
+  list(
+  ggdist::stat_dots(color=ss.col.viol,position = position_nudge(x=+0.05),overflow="compress",layout = "bar", scale=7/10),
+  geom_boxplot(position=position_nudge(x=-0.20), width=0.3,outlier.shape = NA,lwd=1,color=ss.col.viol,fill="transparent"),
+  stat_summary(fun.data = "mean_se", geom = "point",fun.args = list(mult = 1),size=1.5,stroke=1.5),
+  stat_summary(fun.data = "mean_se", geom = "errorbar",fun.args = list(mult = 1),width=0.3,size=1.5),
+  theme_classic(base_family = "Calibri Light",base_size = 25),
+  theme(legend.position="none",
+        panel.background = element_rect(fill = "white", colour = "black"),
+        strip.background = element_blank(),
+        strip.text = element_text(hjust = 0)),
+  scale_y_continuous(expand = expansion(mult = .1)))
+
+```
+
+### Fig1: Learning Accuracy
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+learning.acc.overall<-
+  data$learning %>% 
+  filter(is.na(vals_on)|vals_on!=1) %>% 
+  group_by(partID,expType) %>% 
+  summarise(accuracy=mean(resp.cor)) %>% 
+  ungroup()
+
+f.learn <- 
+  ggplot(aes(x=as.factor(expType),y=accuracy,color=as.factor(expType)),data=learning.acc.overall) + 
+  ggdist::stat_dots(color=ss.col.viol,position = position_nudge(x=+0.05),overflow="compress",layout = "bar", scale=7/10)+
+  geom_boxplot(position=position_nudge(x=-0.20), width=0.3,outlier.shape = NA,lwd=1,color=ss.col.viol,fill="transparent")+
+  stat_summary(fun.data = "mean_se", geom = "point",fun.args = list(mult = 1),size=1.5,stroke=1.5)+
+  stat_summary(fun.data = "mean_se", geom = "errorbar",fun.args = list(mult = 1),width=0.3,size=1.5)+
+  theme_classic(base_family = "Calibri Light",base_size = 25)+
+  theme(legend.position="none",
+        panel.background = element_rect(fill = "white", colour = "black"),
+        strip.background = element_blank(),
+        strip.text = element_text(hjust = 0))+
+  scale_y_continuous(expand = expansion(mult = .1))+
+  scale_color_manual(values=params$palette_learn)+
+  labs(x = "", y = "EV-Maximising Choices")+
+  geom_hline(yintercept = 0.5, color = "gray50", linetype = "dashed")+
+  ylim(0,1)
+
+  
+
+``` 
+
+```{r,fig.height=6,fig.width=18, dpi=300, out.width="100%", message=FALSE, warning=FALSE, echo=FALSE,dev = 'png'}
+f.learn
+```
+
+### Explicit Recollection: E2
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+f.vals.E2.D1<-
+ggplot(aes(x=resp_ev),
+       data=data$valuation %>%
+         filter(Day==1) %>%
+         filter(expType%in%c("E2"))) +
+         # group_by(partID,expType,symID.f,sym_ev,Day) %>% 
+         # summarise(resp_ev= mean(resp_ev))) +
+  geom_histogram(breaks = seq(-90, 90, by = 10),
+                 color="White",
+                 aes(y = after_stat(count / ave(count, PANEL, FUN = sum)))) +
+  scale_x_continuous(breaks = seq(-90, 90, by=45))+
+  facet_grid(expType~symID.f)+
+  theme_classic(base_family = "Calibri Light",base_size = 25)+
+  xlab("Subjective Value")+ylab("Proportion")+
+  theme(legend.position="none",
+        panel.background = element_rect(fill = "white", colour = "black"),
+        strip.background = element_blank())+
+  geom_vline(aes(xintercept=sym_ev),color="#f69b00",linetype="dashed",size=0.5)+
+  ylim(0,1)
+
+f.vals.E2.D2<-
+ggplot(aes(x=resp_ev),
+       data=data$valuation %>%
+         filter(Day==2) %>%
+         filter(expType%in%c("E2"))) +
+  # group_by(partID,expType,symID.f,sym_ev,Day) %>% 
+  # summarise(resp_ev= mean(resp_ev))) +
+  geom_histogram(breaks = seq(-90, 90, by = 10),
+                 color="White",
+                 aes(y = after_stat(count / ave(count, PANEL, FUN = sum)))) +
+  scale_x_continuous(breaks = seq(-90, 90, by=45))+
+  facet_grid(expType~symID.f)+
+  theme_classic(base_family = "Calibri Light",base_size = 25)+
+  xlab("Subjective Value")+ylab("Proportion")+
+  theme(legend.position="none",
+        panel.background = element_rect(fill = "white", colour = "black"),
+        strip.background = element_blank())+
+  geom_vline(aes(xintercept=sym_ev),color="#f69b00",linetype="dashed",size=0.5)+
+  ylim(0,1)
+
+```
+
+#### Day 1
+```{r,fig.height=3.25,fig.width=18, dpi=300, out.width="100%", message=FALSE, warning=FALSE, echo=FALSE,dev = 'png'}
+f.vals.E2.D1
+```
+
+#### Day 2
+```{r,fig.height=3.25,fig.width=18, dpi=300, out.width="100%", message=FALSE, warning=FALSE, echo=FALSE,dev = 'png'}
+f.vals.E2.D2
+```
+
+### Explicit Recollection: Probability
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+p.probs<-
+  data$valuation %>%
+  filter(Day==1) %>% 
+  filter(!expType%in%c("E1","E2")) %>% 
+  group_by(expType) %>% 
+  do(plots = ggplot(aes(x=resp_prob),data=.) +
+    geom_histogram(bins=10)+facet_wrap(~symID.f,nrow=1)+
+    theme_classic()+xlab("Subjective Probability"))
+
+f.prob.D1<-
+  ggplot(aes(x=resp_prob),
+       data=data$valuation %>%
+         filter(Day==1) %>% 
+         filter(!expType%in%c("E1","E2"))) +
+  geom_histogram(breaks = seq(0, 100, by = 10),
+                 color="white",
+                 aes(y = after_stat(count / ave(count, PANEL, FUN = sum)))) + 
+  scale_x_continuous(breaks = seq(0, 100, by=25))+
+  facet_grid(expType~symID.f)+
+  ylim(0,1)+
+  theme_classic(base_family = "Calibri Light",base_size = 25)+
+  xlab("Subjective Probability [%]")+ylab("Proportion of Responses")+
+  theme(legend.position="none",
+        panel.background = element_rect(fill = "white", colour = "black"),
+        strip.background = element_blank())+
+  geom_vline(aes(xintercept=sym_prob),color="#f69b00", linetype="dashed", size=1)
+
+f.prob.D2<-
+  ggplot(aes(x=resp_prob),
+       data=data$valuation %>%
+         filter(Day==2) %>% 
+         filter(!expType%in%c("E1","E2"))) +
+  geom_histogram(breaks = seq(0, 100, by = 10),
+                 color="White",
+                 aes(y = after_stat(count / ave(count, PANEL, FUN = sum)))) + 
+  scale_x_continuous(breaks = seq(0, 100, by=25))+facet_grid(expType~symID.f)+
+  ylim(0,1)+
+  theme_classic(base_family = "Calibri Light",base_size = 25)+
+  xlab("Subjective Probability [%]")+ylab("Proportion of Responses")+
+  theme(legend.position="none",
+        panel.background = element_rect(fill = "white", colour = "black"),
+        strip.background = element_blank())+
+  geom_vline(aes(xintercept=sym_prob),color="#f69b00", linetype="dashed", size=1)
+```
+
+#### Day 1
+```{r,fig.height=10.5,fig.width=18, dpi=300, out.width="100%", message=FALSE, warning=FALSE, echo=FALSE,dev = 'png'}
+f.prob.D1
+```
+
+#### Day 2
+```{r,fig.height=10.5,fig.width=18, dpi=300, out.width="100%", message=FALSE, warning=FALSE, echo=FALSE,dev = 'png'}
+f.prob.D2
+```
+
+### Explicit Recollection: Magnitude
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+p.vals<-
+  data$valuation %>%
+  filter(Day==1) %>% 
+  filter(!expType%in%c("E1","E2")) %>% 
+  group_by(expType,symID.f,resp_rew) %>% 
+  summarise(n=n())
+
+f.vals.D1<-
+  ggplot(aes(x=as.factor(resp_rew),y=prop),
+       data=data$valuation %>%
+         filter(Day==1) %>% 
+         filter(!expType%in%c("E1","E2")) %>% 
+         group_by(expType,symID.f,resp_rew,sym_reward) %>% 
+         summarise(n=n()) %>%
+         group_by(expType,symID.f) %>% 
+         mutate(prop = prop.table(n)))+
+  geom_col(color="white")+
+  facet_grid(expType~symID.f)+
+  theme_classic(base_family = "Calibri Light",base_size = 25)+xlab("Subjective Magnitude")+ylab("Proportion of Responses")+
+  theme(legend.position="none",
+        panel.background = element_rect(fill = "white", colour = "black"),
+        strip.background = element_blank())+
+  scale_color_manual(values = c("transparent","#f69b00"))+
+  geom_vline(aes(xintercept=as.factor(sym_reward)),color="#f69b00", linetype="dashed", size=1)+
+  ylim(0,1)
+
+f.vals.D2<-
+  ggplot(aes(x=as.factor(resp_rew),y=prop),
+       data=data$valuation %>%
+         filter(Day==2) %>% 
+         filter(!expType%in%c("E1","E2")) %>% 
+         group_by(expType,symID.f,resp_rew,sym_reward) %>% 
+         summarise(n=n()) %>%
+         group_by(expType,symID.f) %>% 
+         mutate(prop = prop.table(n)))+
+  geom_col(color="white")+
+  facet_grid(expType~symID.f)+
+  theme_classic(base_family = "Calibri Light",base_size = 25)+
+  xlab("Subjective Magnitude")+ylab("Proportion of Responses")+
+  theme(legend.position="none",
+        panel.background = element_rect(fill = "white", colour = "black"),
+        strip.background = element_blank())+
+  scale_color_manual(values = c("transparent","#f69b00"))+
+  geom_vline(aes(xintercept=as.factor(sym_reward)),color="#f69b00", linetype="dashed", size=1)+
+  ylim(0,1)
+```
+
+#### Day 1
+```{r,fig.height=10.5,fig.width=18, dpi=300, out.width="100%", message=FALSE, warning=FALSE, echo=FALSE,dev = 'png'}
+f.vals.D1
+```
+
+#### Day 2
+```{r,fig.height=10.5,fig.width=18, dpi=300, out.width="100%", message=FALSE, warning=FALSE, echo=FALSE,dev = 'png'}
+f.vals.D2
+```
+
+### Probabilty vs Magnitude
+```{r, Q3 -Prob and value, echo=FALSE,fig.height=10,fig.width=8, message=FALSE, warning=FALSE}
+probval<-
+data$valuation%>% 
+  filter(!expType%in%c("E1","E2")) %>% 
+  mutate(val_error = ifelse(sign(resp_rew)==sign(sym_reward),"wrong","correct"),
+         resp_valence = ifelse(resp_rew<0,"-","+")) 
+
+beeswarm.2<-
+  list(
+  ggbeeswarm::geom_quasirandom(varwidth = TRUE,groupOnX=TRUE,color="gray85",alpha=0.5, stroke=2.5, shape=0),
+  geom_rect(aes(xmin=1-0.5, xmax=1, ymin=-0.1, ymax=1.1), color="white", fill="white", alpha=1),
+  geom_rect(aes(xmin=2-0.5, xmax=2, ymin=-0.1, ymax=1.1), color="white", fill="white", alpha=1))
+
+f.probval<-
+  ggplot(aes(x=resp_valence,y=resp_prob/100, color=as.factor(val_error)),data=probval)+
+  beeswarm.2+
+  geom_boxplot(position=position_nudge(x=-0.20), width=0.3,outlier.shape = NA,lwd=1,color=ss.col.viol,fill="transparent")+
+  stat_summary(fun.data = "mean_se", geom = "point",fun.args = list(mult = 1),size=1.5,stroke=1.5)+
+  stat_summary(fun.data = "mean_se", geom = "errorbar",fun.args = list(mult = 1),width=0.3,size=1.5)+
+  theme_classic(base_family = "Calibri Light",base_size = 25)+
+  theme(legend.position="none",
+      panel.background = element_rect(fill = "white", colour = "black"),
+      strip.background = element_blank())+
+  scale_y_continuous(expand = expansion(mult = .1))+
+  scale_color_manual(values=params$palette_4[c(1,4)])+
+  facet_grid(expType~symID.f,scales = "free")+
+  geom_hline(yintercept=c(0.25,0.5,0.75), color = "gray70", linetype = "dashed")+
+  labs(x = "valence estimate", y = "probability estimate")
+
+```
+
+#### Day 1+ Day 2
+```{r,fig.height=10.5,fig.width=18, dpi=300, out.width="100%", message=FALSE, warning=FALSE, echo=FALSE,dev = 'png'}
+f.probval
+```
+
+
+
+
+

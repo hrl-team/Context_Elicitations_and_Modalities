@@ -1,0 +1,754 @@
+---
+title: "Figures: Main Text"
+output: html_document
+params:
+  data_path: D:\Magdalena\Projects\Retrospective Theory\RT_Analysis\Retrospective-Theory\data_RT_Anon.Rds
+  palette_8: !r c("#045361","#076d7e","#0B889D","#0E99B0","#fecd00","#FBBC00","#F9AC00","#f69b00")
+  palette_5: !r c("#045361","#0E99B0","gray85","#fecd00","#f69b00")
+  palette_4: !r c("#045361","#076d7e","#0B889D","#0E99B0","#fecd00","#FBBC00","#F9AC00","#f69b00")[c(1,3,6,8)]
+editor_options:
+  chunk_output_type: console
+---
+Here is a list of figures used in the main text (Fig.2-6).
+
+```{r Load Packages,include=FALSE, message=FALSE,warning=FALSE}
+library(data.table)
+library(tidyverse)
+library(extrafont)
+library(ggpubr)
+library(ggh4x)
+library(patchwork)
+loadfonts()
+```
+
+```{r get Data,include=FALSE, message=FALSE,warning=FALSE}
+data<-readRDS(params$data_path)
+```
+ 
+
+```{r graph settings,include=FALSE, message=FALSE,warning=FALSE, echo=FALSE}
+
+ss.col.viol <- "gray70"
+ref.col <- "#BF4E30" 
+
+shared.graph.settings.pref<-
+  list(
+  ggdist::stat_dots(color=ss.col.viol,position = position_nudge(x=+0.05),overflow="compress",layout = "bar", scale=7/10),
+  geom_boxplot(position=position_nudge(x=-0.20), width=0.3,outlier.shape = NA,lwd=1,color=ss.col.viol,fill="transparent"),
+  stat_summary(fun.data = "mean_se", geom = "point",fun.args = list(mult = 1),size=1.5,stroke=1.5),
+  stat_summary(fun.data = "mean_se", geom = "errorbar",fun.args = list(mult = 1),width=0.3,size=1.5),
+  theme_classic(base_family = "Calibri Light",base_size = 25),
+  theme(legend.position="none",
+        panel.background = element_rect(fill = "white", colour = "black"),
+        strip.background = element_blank(),
+        strip.text = element_text(hjust = 0)),
+  facet_wrap(~expType),
+  scale_y_continuous(expand = expansion(mult = .1)))
+
+shared.graph.settings.pref.noWrap<-
+  list(
+  ggdist::stat_dots(color=ss.col.viol,position = position_nudge(x=+0.05),overflow="compress",layout = "bar", scale=7/10),
+  geom_boxplot(position=position_nudge(x=-0.20), width=0.3,outlier.shape = NA,lwd=1,color=ss.col.viol,fill="transparent"),
+  stat_summary(fun.data = "mean_se", geom = "point",fun.args = list(mult = 1),size=1.5,stroke=1.5),
+  stat_summary(fun.data = "mean_se", geom = "errorbar",fun.args = list(mult = 1),width=0.3,size=1.5),
+  theme_classic(base_family = "Calibri Light",base_size = 25),
+  theme(legend.position="none",
+        panel.background = element_rect(fill = "white", colour = "black"),
+        strip.background = element_blank(),
+        strip.text = element_text(hjust = 0)),
+  scale_y_continuous(expand = expansion(mult = .1)))
+
+```
+
+```{r, Q1 Preference Task - Zigzag, echo=FALSE, message=FALSE, warning=FALSE}
+bar.preference<-
+  data$preference %>%
+  pivot_longer(cols = c(ev_ch, ev_u, 
+                        sym_ch,symID_ch,prob_ch,rew_ch,loss_ch,ran_ch,outcome_ch,
+                        sym_u,symID_u,prob_u,rew_u,loss_u,ran_u,outcome_u),
+               names_to=c(".value","chosen"),names_sep = "([_])") %>% 
+  mutate(was_chosen_numeric = ifelse(chosen == "ch", 1,0)) %>% 
+  group_by(partID,ev,FirstTask,Run,expType,Day) %>% 
+  summarise(prop.chosen=mean(was_chosen_numeric)) %>% 
+  arrange(Day,partID,ev) %>% 
+  filter(Day==1) %>% 
+  mutate(ev2 = case_when(ev == -67.5 ~ "A",
+                             ev == -22.5 ~ "B",
+                             ev == -7.5 ~ "C",
+                             ev == -2.5 ~ "D",
+                             ev == 2.5 ~ "E",
+                             ev == 7.5 ~ "F",
+                             ev == 22.5 ~ "G",
+                             ev == 67.5 ~ "H"),
+         sublabel = "Expected value")
+
+p.zigzag<-
+  bar.preference %>% 
+  group_by(expType) %>% 
+  do(plots=ggplot(aes(x=as.factor(ev2),y=prop.chosen,color=as.factor(ev2)),data=.) + 
+       shared.graph.settings.pref+
+  annotate('path', color = 'gray50', x = c(1, 8), y = c(0, 1),linetype="dashed")+
+  scale_color_manual(values=params$palette_8)+
+  labs(x = "", y = "Choice Rate"))
+
+p.zigzag.ref.6<-
+ggplot(aes(x=as.factor(ev2),y=prop.chosen,color=as.factor(ev2)),data=subset(bar.preference,expType=="E6")) + 
+       shared.graph.settings.pref+
+      scale_color_manual(values=params$palette_8)+
+      annotate('path', color = 'gray50', x = c(1, 8), y = c(0, 1),linetype="dashed")+
+      labs(x = "", y = "Choice Rate")+
+  stat_summary(fun.data = mean_se, geom = "point",size=4,alpha = 0.8, color=ref.col, shape=16,
+               data=subset(bar.preference,expType=="E3") %>% mutate(expType="E6"))
+
+p.zigzag.ref.7<-
+ggplot(aes(x=as.factor(ev2),y=prop.chosen,color=as.factor(ev2)),data=subset(bar.preference,expType=="E7")) + 
+       shared.graph.settings.pref+
+      scale_color_manual(values=params$palette_8)+
+      annotate('path', color = 'gray50', x = c(1, 8), y = c(0, 1),linetype="dashed")+
+      labs(x = "", y = "Choice Rate")+
+      stat_summary(fun.data = mean_se, geom = "point",size=4, alpha = 0.8, color=ref.col, shape=16,
+               data=subset(bar.preference,expType=="E3"))
+
+# p.zigzag.arrow<-
+#   bar.preference %>% 
+#   group_by(expType) %>% 
+#   do(plots=ggplot(aes(x=weave_factors(as.factor(ev2), sublabel),y=prop.chosen,color=as.factor(ev2)),data=.) + 
+#        shared.graph.settings.pref+
+#   annotate('path', color = 'gray50', x = c(1, 8), y = c(0, 1),linetype="dashed")+
+#   scale_color_manual(values=params$palette_8)+
+#   labs(x = "", y = "Choice Rate")+
+#   theme(ggh4x.axis.nestline.x = element_line(arrow = arrow(type="open",length=unit(10,"points")),linewidth = 0.8),
+#         ggh4x.axis.nesttext.x = element_text(vjust = +0.8))+
+#   scale_x_discrete(guide = guide_axis_nested(extend = 1.5)))
+
+p.zigzag.arrow<-
+  bar.preference %>% 
+  group_by(expType) %>% 
+  do(plots=ggplot(aes(x=as.factor(ev2),y=prop.chosen,color=as.factor(ev2)),data=.) + 
+       shared.graph.settings.pref+
+  annotate('path', color = 'gray50', x = c(1, 8), y = c(0, 1),linetype="dashed")+
+  scale_color_manual(values=params$palette_8)+
+  labs(x = "Expected Value", y = "Choice Rate")+
+  coord_cartesian(clip = 'off') +
+  annotation_custom(grid::segmentsGrob(c(0.05), c(-0.12), 
+                                 c(0.95), c(-0.12), gp = grid::gpar(lwd = 2),
+                                arrow = arrow(length = unit(2.5, 'mm')))))
+
+p.zigzag.ref.6.arrow<-
+ggplot(aes(x=as.factor(ev2),y=prop.chosen,color=as.factor(ev2)),data=subset(bar.preference,expType=="E6")) + 
+      shared.graph.settings.pref+
+      scale_color_manual(values=params$palette_8)+
+      annotate('path', color = 'gray50', x = c(1, 8), y = c(0, 1),linetype="dashed")+
+      labs(x = "Expected Value", y = "Choice Rate")+
+  stat_summary(fun.data = mean_se, geom = "point",size=4,alpha = 0.8, color=ref.col, shape=16,
+               data=subset(bar.preference,expType=="E3") %>% mutate(expType="E6"))+
+    coord_cartesian(clip = 'off') +
+  annotation_custom(grid::segmentsGrob(c(0.05), c(-0.12), 
+                                 c(0.95), c(-0.12), gp = grid::gpar(lwd = 2),
+                                arrow = arrow(length = unit(2.5, 'mm'))))
+
+p.zigzag.ref.7.arrow<-
+ggplot(aes(x=as.factor(ev2),y=prop.chosen,color=as.factor(ev2)),data=subset(bar.preference,expType=="E7")) + 
+       shared.graph.settings.pref+
+      scale_color_manual(values=params$palette_8)+
+      annotate('path', color = 'gray50', x = c(1, 8), y = c(0, 1),linetype="dashed")+
+      labs(x = "Expected Value", y = "Choice Rate")+
+      stat_summary(fun.data = mean_se, geom = "point",size=4, alpha = 0.8, color=ref.col, shape=16,
+               data=subset(bar.preference,expType=="E3")%>% mutate(expType="E7"))+
+    coord_cartesian(clip = 'off') +
+  annotation_custom(grid::segmentsGrob(c(0.05), c(-0.12),
+                                 c(0.95), c(-0.12), gp = grid::gpar(lwd = 2),
+                                arrow = arrow(length = unit(2.5, 'mm'))))
+  
+```
+
+
+```{r, Q1 Preference Task - Choice Set, echo=FALSE,fig.height=10,fig.width=8, message=FALSE, warning=FALSE}
+bar.preference.choiceSet<-
+  data$preference %>% 
+  filter(Day==1) %>% 
+  group_by(partID,expType,relative) %>% 
+  summarise(accuracy = mean(resp.cor)) %>% 
+  mutate(sublabel = ifelse(relative=="Old","","new combinations"),
+         relative = case_when(relative  == "New_1" ~ "New1",
+                              relative  == "New_2" ~ "New2",
+                              relative  == "New_3" ~ "New3",
+                              TRUE~relative),
+         relative = relevel(as.factor(relative),"Old"))
+
+
+
+
+p.choiceSet<-
+  bar.preference.choiceSet %>% 
+  group_by(expType) %>% 
+  do(plots=ggplot(aes(x=weave_factors(as.factor(relative), sublabel), y=accuracy,color=as.factor(relative)),data=.)+ 
+  shared.graph.settings.pref+
+  geom_hline(yintercept = 0.5, color = "gray70", linetype = "dashed")+
+  scale_color_manual(values=params$palette_4[c(4,3,2,1)])+
+ # scale_x_discrete(limits = c("Old", "New_1", "New_2", "New_3"),labels = c("Old", "New1", "New2", "New3"))+
+  labs(x = "", y = "EV-maximising choices")+
+  scale_y_continuous(expand = expansion(mult = .125),
+                     breaks = c(0,0.25,0.5,0.75,1))+
+  guides(x = "axis_nested"))
+
+
+
+```
+
+
+```{r, Q3 -Value Judgement - Rank, echo=FALSE,,fig.height=10,fig.width=8,message=FALSE, warning=FALSE}
+bar.valuation_oneRank<-
+  data$valuation %>%
+  filter(Day ==1) %>% 
+  group_by(partID,expID,sym_ev) %>% 
+  mutate(mean_int = mean(resp_int),
+         repetition = seq(trial)) %>% 
+  filter(repetition ==1) %>% 
+  group_by(partID,expID) %>% 
+  arrange(sym_ev) %>% 
+  mutate(chosen.rank_m = rank (mean_int,ties.method = "first"),
+         correct.rank_m = rank (sym_ev)) %>% 
+  group_by(partID,sym_ev,Run,Day,FirstTask,expType) %>% 
+  summarise(mean.rank = (mean(chosen.rank_m)-1)/7,
+            correct = (mean(correct.rank_m)-1)/7) %>% 
+  mutate(mean.rank.diff = mean.rank-correct,
+         sym_ev.f = as.factor(sym_ev)) %>% 
+  mutate(sym_ev2 = case_when(sym_ev == -67.5 ~ "A",
+                             sym_ev == -22.5 ~ "B",
+                             sym_ev == -7.5 ~ "C",
+                             sym_ev == -2.5 ~ "D",
+                             sym_ev == 2.5 ~ "E",
+                             sym_ev == 7.5 ~ "F",
+                             sym_ev == 22.5 ~ "G",
+                             sym_ev == 67.5 ~ "H")) %>% 
+  mutate(sublabel = "Expected value")
+
+p.val<-
+  bar.valuation_oneRank%>% 
+  group_by(expType) %>% 
+  do(plots=ggplot(aes(x=as.factor(sym_ev2),y=mean.rank,color=as.factor(sym_ev2)),data=.) + 
+  shared.graph.settings.pref+
+  annotate('path', color = 'gray50', x = c(1, 8), y = c(0, 1),linetype="dashed")+
+  scale_color_manual(values=params$palette_8)+
+  labs(x = "", y = "Mean Rank"))
+
+p.val.ref.6<-
+  ggplot(aes(x=as.factor(sym_ev2),y=mean.rank,color=as.factor(sym_ev2)),data=subset(bar.valuation_oneRank,expType=="E6")) + 
+  shared.graph.settings.pref+
+  scale_color_manual(values=params$palette_8)+
+  labs(x = "", y = "Mean Rank")+
+  stat_summary(fun.data = mean_se, geom = "point",size=4, alpha = 0.8, color=ref.col, shape=16,
+               data=subset(bar.valuation_oneRank,expType=="E3") %>% mutate(expType="E6"))
+
+p.val.ref.7<-
+  ggplot(aes(x=as.factor(sym_ev2),y=mean.rank,color=as.factor(sym_ev2)),data=subset(bar.valuation_oneRank,expType=="E7")) + 
+  shared.graph.settings.pref+
+  scale_color_manual(values=params$palette_8)+
+  labs(x = "", y = "Mean Rank")+
+  stat_summary(fun.data = mean_se, geom = "point",size=4, alpha = 0.8, color=ref.col, shape=16,
+               data=subset(bar.valuation_oneRank,expType=="E3")%>% mutate(expType="E7"))
+
+# p.val.arrow<-
+#   bar.valuation_oneRank%>% 
+#   group_by(expType) %>% 
+#   do(plots=ggplot(aes(x=weave_factors(as.factor(sym_ev2), sublabel),y=mean.rank,color=as.factor(sym_ev2)),data=.) + 
+#   shared.graph.settings.pref+
+#   annotate('path', color = 'gray50', x = c(1, 8), y = c(0, 1),linetype="dashed")+
+#   scale_color_manual(values=params$palette_8)+
+#   labs(x = "", y = "Mean Rank")+
+#       theme(ggh4x.axis.nestline.x = element_line(arrow = arrow(type="open",length=unit(10,"points")),linewidth = 0.8),
+#         ggh4x.axis.nesttext.x = element_text(vjust = +0.8))+
+#   scale_x_discrete(guide = guide_axis_nested(extend = 1.5)))
+
+
+p.val.arrow<-
+  bar.valuation_oneRank%>% 
+  group_by(expType) %>% 
+  do(plots=ggplot(aes(x=as.factor(sym_ev2),y=mean.rank,color=as.factor(sym_ev2)),data=.) + 
+  shared.graph.settings.pref+
+  annotate('path', color = 'gray50', x = c(1, 8), y = c(0, 1),linetype="dashed")+
+  scale_color_manual(values=params$palette_8)+
+  labs(x = "Expected Value", y = "Mean Rank")+
+  coord_cartesian(clip = 'off')+
+  annotation_custom(grid::segmentsGrob(c(0.05), c(-0.12), 
+                                 c(0.95), c(-0.12), gp = grid::gpar(lwd = 2),
+                                arrow = arrow(length = unit(2.5, 'mm')))))
+
+p.val.ref.6.arrow<-
+  ggplot(aes(x=as.factor(sym_ev2),y=mean.rank,color=as.factor(sym_ev2)),data=subset(bar.valuation_oneRank,expType=="E6")) + 
+  shared.graph.settings.pref+
+  scale_color_manual(values=params$palette_8)+
+  labs(x = "Expected Value", y = "Mean Rank")+
+  stat_summary(fun.data = mean_se, geom = "point",size=4, alpha = 0.8, color=ref.col, shape=16,
+               data=subset(bar.valuation_oneRank,expType=="E3") %>% mutate(expType="E6"))+
+  coord_cartesian(clip = 'off')+
+  annotation_custom(grid::segmentsGrob(c(0.05), c(-0.12), 
+                                 c(0.95), c(-0.12), gp = grid::gpar(lwd = 2),
+                                arrow = arrow(length = unit(2.5, 'mm'))))
+
+p.val.ref.7.arrow<-
+  ggplot(aes(x=as.factor(sym_ev2),y=mean.rank,color=as.factor(sym_ev2)),data=subset(bar.valuation_oneRank,expType=="E7")) + 
+  shared.graph.settings.pref+
+  scale_color_manual(values=params$palette_8)+
+  labs(x = "Expected Value", y = "Mean Rank")+
+  stat_summary(fun.data = mean_se, geom = "point",size=4, alpha = 0.8, color=ref.col, shape=16,
+               data=subset(bar.valuation_oneRank,expType=="E3")%>% mutate(expType="E7"))+
+  coord_cartesian(clip = 'off')+
+  annotation_custom(grid::segmentsGrob(c(0.05), c(-0.12), 
+                                 c(0.95), c(-0.12), gp = grid::gpar(lwd = 2),
+                                arrow = arrow(length = unit(2.5, 'mm'))))
+
+```
+
+
+```{r, Raster Plot , echo=FALSE,fig.height=10,fig.width=8,message=FALSE, warning=FALSE}
+cor.pref <-
+  data$preference %>% 
+  filter(Day ==1) %>% 
+  mutate(ev_cor = ifelse(resp.cor == 1,ev_ch,ev_u),
+         ev_incor = ifelse(resp.cor==1,ev_u,ev_ch),
+         symID_cor = ifelse(resp.cor == 1,symID_ch,symID_u),
+         symID_incor = ifelse(resp.cor==1,symID_u,symID_ch),
+         choiceTypeCor = (symID_cor+1)*10+(symID_incor+1)) %>% 
+  select(partID,Day,FirstTask,Run,expType,resp.cor,ev_cor,ev_incor,choiceTypeCor,relative) %>% 
+  pivot_longer(cols = c(ev_cor, ev_incor), names_to=c(".value","was_correct"),names_sep = "([_])") 
+
+cor.val<-
+  bar.valuation_oneRank %>%
+  filter(Day ==1) %>% 
+  group_by(partID,sym_ev,Run,Day,FirstTask,expType) %>% 
+  summarise(val.rank = (mean(mean.rank)*7))%>% 
+  mutate(ev = sym_ev) %>% 
+  ungroup() %>% 
+  select(-c(sym_ev))
+
+cor.joined <-
+  merge(cor.pref,cor.val) %>% 
+   filter(Day ==1) %>% 
+  select(partID,expType,Day,FirstTask,Run,ev,choiceTypeCor,resp.cor,val.rank,was_correct,relative) %>% 
+  pivot_wider(names_from = was_correct,values_from=c(ev,val.rank),names_sep = "_") %>% 
+  mutate(resp.cor.val = case_when(val.rank_cor>val.rank_incor~1,
+                                  val.rank_cor==val.rank_incor~0.5,
+                                  val.rank_cor<val.rank_incor~0)) %>% 
+  mutate(agree = case_when(resp.cor.val == resp.cor ~ 1,
+                           resp.cor.val != resp.cor &  resp.cor.val !=0.5 ~ 0,
+                           resp.cor.val != resp.cor &  resp.cor.val ==0.5 ~ 0.5))
+
+ bar.cor.joined<-
+  cor.joined %>%
+  filter(Day == 1) %>% 
+  pivot_longer(cols = c(ev_cor, ev_incor,val.rank_cor,val.rank_incor), names_to=c(".value","was_correct"),names_sep = "([_])") %>% 
+  group_by(Day,FirstTask,Run,expType,partID,.drop = FALSE) %>% 
+  summarise(mean.agreement = mean(agree)) 
+ 
+ bar.raster<-
+  cor.joined %>% 
+  filter(Day==1) %>% 
+  group_by(ev_cor,ev_incor,expType,.drop = FALSE) %>% 
+  summarise(accuracy_P=mean(resp.cor),
+            accuracy_V=mean(resp.cor.val)) %>% 
+  mutate(ev_cor2 = case_when(ev_cor == -67.5 ~ "A",
+                             ev_cor == -22.5 ~ "B",
+                             ev_cor == -7.5 ~ "C",
+                             ev_cor == -2.5 ~ "D",
+                             ev_cor == 2.5 ~ "E",
+                             ev_cor == 7.5 ~ "F",
+                             ev_cor == 22.5 ~ "G",
+                             ev_cor == 67.5 ~ "H"),
+         ev_incor2 = case_when(ev_incor == -67.5 ~ "A",
+                             ev_incor == -22.5 ~ "B",
+                             ev_incor == -7.5 ~ "C",
+                             ev_incor == -2.5 ~ "D",
+                             ev_incor == 2.5 ~ "E",
+                             ev_incor == 7.5 ~ "F",
+                             ev_incor == 22.5 ~ "G",
+                             ev_incor == 67.5 ~ "H"))
+
+ 
+ p.raster.legend<-
+  bar.raster%>% 
+  group_by(expType) %>% 
+  do(plots=ggplot() + 
+  geom_tile(aes(y=as.factor(ev_cor2),x=as.factor(ev_incor2),fill=accuracy_P),data=.) +
+  geom_tile(aes(x=as.factor(ev_cor2),y=as.factor(ev_incor2),fill=accuracy_V),data=.) +
+  scale_fill_gradient2(low="#BF4E30", high="#218380", mid="gray95",midpoint=0.5,
+                       limits = c(0,1),
+                       breaks = c(0,0.5,1),
+                       labels = c("0","0.5","1")) +
+   theme_classic(base_family = "Calibri Light",base_size = 25)+
+  annotate('path', color = 'gray70', x = c(0.5, 8.5), y = c(0.5,8.5),linetype="dashed")+
+  theme(legend.position=c(0.87,-0.37),
+        #legend.location = "panel",
+        legend.direction = "horizontal",
+        legend.margin = margin(t=-50,b=0,r=0,l=0),
+        legend.text = element_text(margin=margin(t=0),size=15),
+        legend.text.position = "bottom",
+        legend.title = element_blank(),
+        axis.title.x = element_text(hjust=0),
+        legend.box.margin = margin(t=-50),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        strip.background = element_blank(),
+        strip.text = element_text(hjust = 0))+   
+    labs(x = "Recollection Task", y = "Preference Task")+
+   scale_y_discrete(limits=c("A","B","C","D","E","F","G","H"))+
+  facet_wrap(~expType))
+ 
+  p.raster<-
+  bar.raster%>% 
+  group_by(expType) %>% 
+  do(plots=ggplot() + 
+  geom_tile(aes(y=as.factor(ev_cor2),x=as.factor(ev_incor2),fill=accuracy_P),data=.) +
+  geom_tile(aes(x=as.factor(ev_cor2),y=as.factor(ev_incor2),fill=accuracy_V),data=.) +
+  scale_fill_gradient2(low="#BF4E30", high="#218380", mid="gray95",midpoint=0.5,limits = c(0,1),breaks = c(0,0.5,1)) +
+   theme_classic(base_family = "Calibri Light",base_size = 25)+
+  annotate('path', color = 'gray70', x = c(0.5, 8.5), y = c(0.5,8.5),linetype="dashed")+
+  theme(legend.position="none",
+        axis.title.x = element_text(hjust=0),
+        legend.title = element_blank(),
+        legend.box.margin = margin(t=-25),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        strip.background = element_blank(),
+        strip.text = element_text(hjust = 0))+   
+    labs(x = "Recollection Task", y = "Preference Task")+
+   scale_y_discrete(limits=c("A","B","C","D","E","F","G","H"))+
+  facet_wrap(~expType))
+```
+
+
+```{r, Reward Stacks E1, echo=FALSE, message=FALSE, warning=FALSE}
+y<-
+  data$valuation %>% 
+  filter(Day == 1) %>% 
+  filter(expType != "E2") %>% 
+  mutate(resp_rew=ifelse(expType=="E1",reward_ch,resp_rew)) %>% 
+  group_by(sym_ev,expType,sym_reward) %>% 
+  mutate(n_part = n()) %>% 
+  ungroup() %>% 
+  group_by(resp_rew,sym_ev,expType,sym_reward) %>% 
+  summarise(n=n(),
+            n_part2= mean(n_part)) %>% 
+  mutate(cut = ifelse(resp_rew<0,-1,1),
+         n2 = n,
+         n.test=n/2)
+
+y.0n  <-
+  y %>% 
+  filter(resp_rew == 0) %>% 
+  mutate(cut_n = n/2,
+         n2 = cut_n) %>% 
+  mutate(cut = -1)
+
+y.0p <-
+  y %>% 
+  filter(resp_rew == 0) %>% 
+  mutate(cut_n = n/2,
+         n2 = cut_n) %>% 
+  mutate(cut = 1)
+
+y.a <- 
+  bind_rows(y.0n,y.0p,subset(y,resp_rew!=0)) %>% 
+  mutate(n.stack = cut*n2)%>% 
+  mutate(n3 = n.stack/n_part2) %>% 
+  mutate(resp_rew2 = paste0(resp_rew,ifelse(cut<0,"_n","_p")),
+         resp_rew2f = factor(resp_rew2, levels=c("-90_n","-10_n","0_n","90_p","10_p","0_p")),
+         resp_rewf = factor(resp_rew2, levels=c("-90","-10","0","10","90")))%>% 
+  mutate(sym_ev2 = case_when(sym_ev == -67.5 ~ "A",
+                             sym_ev == -22.5 ~ "B",
+                             sym_ev == -7.5 ~ "C",
+                             sym_ev == -2.5 ~ "D",
+                             sym_ev == 2.5 ~ "E",
+                             sym_ev == 7.5 ~ "F",
+                             sym_ev == 22.5 ~ "G",
+                             sym_ev == 67.5 ~ "H"))
+  
+p.stack<-
+  y.a %>% 
+  filter(expType == "E1") %>% 
+  group_by(expType) %>% 
+  do(plots= ggplot(aes(x=as.factor(sym_ev2),y=n3, fill=resp_rew2f),data=.)+
+     geom_col(alpha=0.85)+
+     scale_fill_manual(values= c(params$palette_5[1:3],rev(params$palette_5[3:5])))+
+     coord_flip()+
+     geom_hline(yintercept =0, color="grey70")+
+     labs(x = "", y = "")+
+     theme_classic(base_family = "Calibri Light",base_size = 25)+
+     theme(legend.position="none",
+          panel.background = element_rect(fill = "white", colour = "black"))+
+     scale_y_continuous(limits = c(-1, 1),
+                        breaks = c(-1,-0.5,0,0.5, 1),
+                        labels=c("-1" = "1", "-0.5" = "0.5", "0"= "0", "0.5" = "0.5","1" = "1")))
+
+p.stackB<-
+  y.a %>% 
+  filter(expType == "E1") %>% 
+  mutate(resp_col = case_when(resp_rew2f=="-90_n"~"-90",
+                              resp_rew2f=="-10_n"~"-10",
+                              resp_rew2f=="0_n"~"0",
+                              resp_rew2f=="0_p"~"0",
+                              resp_rew2f=="10_p"~"10",
+                              resp_rew2f=="90_p"~"90",)) %>% 
+  group_by(expType) %>% 
+  do(plots= ggplot(aes(x=as.factor(sym_ev2),y=n3, fill=resp_col,group=resp_rew2f),data=.)+
+     geom_col(alpha=0.85)+
+     scale_fill_manual(values= c(params$palette_5[c(1,2,3)],rev(params$palette_5[c(3,5,4)])),
+                        breaks = c("-90","-10","0","10","90"))+
+     coord_flip()+
+     geom_hline(yintercept =0, color="grey70")+
+     labs(x = "", y = "")+
+     theme_classic(base_family = "Calibri Light",base_size = 25)+
+     theme(panel.background = element_rect(fill = "white", colour = "black"),
+           legend.position = c(0.13,0.78),
+           legend.margin = margin(l=-10,t=-10),
+           legend.direction = "vertical",
+           legend.title = element_blank(),
+           legend.text = element_text(size=15))+
+        #legend.box.margin = margin(t=-55))+
+     scale_y_continuous(limits = c(-1, 1),
+                        breaks = c(-1,-0.5,0,0.5, 1),
+                        labels=c("-1" = "1", "-0.5" = "0.5", "0"= "0", "0.5" = "0.5","1" = "1")))
+
+p.stackB2<-
+  y.a %>% 
+  filter(expType == "E1") %>% 
+  mutate(resp_col = case_when(resp_rew2f=="-90_n"~"-90",
+                              resp_rew2f=="-10_n"~"-10",
+                              resp_rew2f=="0_n"~"0",
+                              resp_rew2f=="0_p"~"0",
+                              resp_rew2f=="10_p"~"10",
+                              resp_rew2f=="90_p"~"90",)) %>% 
+  mutate(cor.sol = case_when(resp_col=="-90"&sym_ev2=="A"~"TRUE",
+                             resp_col=="-10"&sym_ev2=="C"~"TRUE",
+                             resp_col=="10"&sym_ev2=="F"~"TRUE",
+                             resp_col=="90"&sym_ev2=="H"~"TRUE",
+                             resp_col=="0"&sym_ev2%in%c("B","D","E","G")~"TRUE",
+                             TRUE~"FALSE")) %>% 
+  group_by(expType) %>% 
+  do(plots= ggplot(aes(x=as.factor(sym_ev2),y=n3, fill=resp_col,group=resp_rew2f),data=.)+
+       geom_col()+
+       geom_col(color="gray50",size=0.8,show.legend = FALSE)+
+       geom_col(aes(color=cor.sol),fill="transparent",size=0.8,show.legend = FALSE)+
+       scale_fill_manual(values= c(params$palette_5[c(1,2,3)],rev(params$palette_5[c(3,5,4)])),
+                         breaks = c("-90","-10","0","10","90"))+
+       coord_flip()+
+
+       geom_segment(aes(y = c(0), x = c(0.56), xend = c(1.44), yend = c(0)),size=1.2,color="gray85")+
+       geom_segment(aes(y = c(0), x = c(1.56), xend = c(2.44), yend = c(0)),size=1.2,color="gray85")+
+       
+       geom_segment(aes(y = c(0), x = c(2.56), xend = c(3.44), yend = c(0)),size=1.2,color="gray85")+
+       geom_segment(aes(y = c(0), x = c(3.56), xend = c(4.44), yend = c(0)),size=1.2,color="gray85")+
+       geom_segment(aes(y = c(0), x = c(4.56), xend = c(5.44), yend = c(0)),size=1.2,color="gray85")+
+       geom_segment(aes(y = c(0), x = c(5.56), xend = c(6.44), yend = c(0)),size=1.2,color="gray85")+
+       geom_segment(aes(y = c(0), x = c(6.56), xend = c(7.44), yend = c(0)),size=1.2,color="gray85")+
+       geom_segment(aes(y = c(0), x = c(7.56), xend = c(8.44), yend = c(0)),size=1.2,color="gray85")+
+       geom_hline(yintercept =0, color="grey70",linetype="dashed")+
+       labs(x = "", y = "Choice Rate")+
+       theme_classic(base_family = "Calibri Light",base_size = 25)+
+       theme(legend.position = c(0.13,0.78),
+           legend.margin = margin(l=-10,t=-10),
+           legend.direction = "vertical",
+           legend.title = element_blank(),
+           legend.text = element_text(size=15),
+             panel.background = element_rect(fill = "white", colour = "black"),
+             strip.background = element_blank(),
+             strip.text = element_text(hjust = 0))+
+       scale_y_continuous(limits = c(-1, 1),
+                          breaks = c(-1,-0.5,0,0.5, 1),
+                          labels=c("-1" = "1", "-0.5" = "0.5", "0"= "0", "0.5" = "0.5","1" = "1"))+
+       scale_color_manual(values=c("transparent","black"))+
+       facet_wrap(~expType))
+  
+  p.stack2<-
+  y.a %>% 
+  filter(expType != "E1") %>% 
+  group_by(expType) %>% 
+  do(plots= ggplot(aes(x=as.factor(sym_ev2),y=n3, ),data=.)+
+               geom_hline(yintercept =0, color="grey70")+
+     geom_col(aes(fill=resp_rew2f),alpha=0.85,size=0.8,color="gray50")+
+    geom_col(aes(x=as.factor(sym_ev2),y=n3,group=resp_rew2f,color=resp_rew==sym_reward),size=0.8,fill=NA)+
+            scale_fill_manual(values= c(params$palette_5[1:2],rev(params$palette_5[4:5])))+
+
+     coord_flip()+
+     labs(x = "", y = "")+
+     theme_classic(base_family = "Calibri Light",base_size = 25)+
+     theme(legend.position="none",
+          panel.background = element_rect(fill = "white", colour = "black"))+
+     scale_y_continuous(limits = c(-1, 1),
+                        breaks = c(-1,-0.5,0,0.5, 1),
+                        labels=c("-1" = "1", "-0.5" = "0.5", "0"= "0", "0.5" = "0.5","1" = "1"))+
+      scale_color_manual(values=c("transparent","black")))
+
+```
+
+
+
+```{r, Reward Stacks E3-E7, echo=FALSE, message=FALSE, warning=FALSE}
+y<-
+  data$valuation %>% 
+  filter(Day == 1) %>% 
+  filter(!expType%in%c("E2","E1")) %>%
+  group_by(sym_ev,expType) %>% 
+  mutate(n_part = n()) %>% 
+  ungroup() %>% 
+  group_by(resp_rew,sym_ev,expType) %>% 
+  summarise(n=n(),
+            n_part2= mean(n_part)) %>% 
+  mutate(cut = ifelse(resp_rew<0,-1,1),
+         n2 = n,
+         n.test=n/2) %>% 
+  mutate(n.stack = cut*n2)%>% 
+  mutate(n3 = n.stack/n_part2) %>% 
+  mutate(resp_rewf = factor(resp_rew, levels=c("-90","-10","90","10"))) %>% 
+  mutate(sym_ev2 = case_when(sym_ev == -67.5 ~ "A",
+                             sym_ev == -22.5 ~ "B",
+                             sym_ev == -7.5 ~ "C",
+                             sym_ev == -2.5 ~ "D",
+                             sym_ev == 2.5 ~ "E",
+                             sym_ev == 7.5 ~ "F",
+                             sym_ev == 22.5 ~ "G",
+                             sym_ev == 67.5 ~ "H"))
+
+
+bar.valuation.prob<-
+  data$valuation %>%
+  filter(!expType%in%c("E1", "E2")) %>% 
+  filter(Day ==1) %>% 
+  mutate(valence = ifelse(resp_rew<=0,-1,1))  %>%
+  mutate(prob.val = resp_prob*valence/100)%>% 
+  mutate(sym_ev2 = case_when(sym_ev == -67.5 ~ "A",
+                             sym_ev == -22.5 ~ "B",
+                             sym_ev == -7.5 ~ "C",
+                             sym_ev == -2.5 ~ "D",
+                             sym_ev == 2.5 ~ "E",
+                             sym_ev == 7.5 ~ "F",
+                             sym_ev == 22.5 ~ "G",
+                             sym_ev == 67.5 ~ "H"))
+
+
+p.stack3<-
+  y%>% 
+  group_by(expType) %>% 
+  do(plots= ggplot(aes(x=as.factor(sym_ev2),y=n3),data=.)+
+     geom_col(alpha=0.85,aes(fill=resp_rewf))+
+     stat_summary(fun.data = mean_se, geom ="errorbar",
+                  aes(y=prob.val), color="gray55",
+                  data=subset(bar.valuation.prob,expType==unique(.$expType)&valence==1),width=0.3)+  
+     stat_summary(fun.data = mean_se, geom ="errorbar",
+                  aes(y=prob.val), color="gray55",
+                  data=subset(bar.valuation.prob,expType==unique(.$expType)&valence==-1),width=0.3)+
+     coord_flip()+
+     geom_hline(yintercept =0, color="grey70",size=1.2)+
+     geom_hline(yintercept = c(-0.5,0.5),linetype=2,alpha=0.5)+
+     scale_fill_manual(values= c(params$palette_5[1:2],rev(params$palette_5[4:5])))+
+     scale_color_manual(values= c("gray70","gray70"))+
+     labs(x = "", y = "")+
+     theme_classic(base_family = "Calibri Light",base_size = 25)+
+     theme(legend.position="none",
+          panel.background = element_rect(fill = "white", colour = "black"))+
+     scale_y_continuous(limits = c(-1, 1),
+                        breaks = c(-1,-0.5,0,0.5, 1),
+                        labels=c("-1" = "1", "-0.5" = "0.5", "0"= "0", "0.5" = "0.5","1" = "1")))
+  
+
+```
+
+
+```{r, Q3 -Correct Solutions, echo=FALSE,fig.height=10,fig.width=8, message=FALSE, warning=FALSE}
+cor.solution<-
+  bar.valuation_oneRank %>% 
+  mutate(rel.val = case_when(expType%in%c("E1","E2")&sym_ev%in%c(-67.5,-7.5,2.5,22.5)~0.02,
+                             expType%in%c("E1","E2")&!sym_ev%in%c(-67.5,-7.5,2.5,22.5)~1,
+                             expType%in%c("E3")&sym_ev%in%c(-67.5,-22.5,2.5,7.5)~0.02,
+                             expType%in%c("E3")&!sym_ev%in%c(-67.5,-22.5,2.5,7.5)~1,
+                             expType%in%c("E4")~ correct )) %>% 
+  mutate(correct = ifelse(correct==0,0.02,correct),
+         rel.val = ifelse(rel.val==0,0.02,rel.val)) %>% 
+  group_by(sym_ev,sym_ev2,expType) %>% 
+  summarise(mean.abs = mean(correct),
+            mean.rel = mean(rel.val)) 
+
+p.rel<-
+cor.solution %>% 
+group_by(expType) %>% 
+do(plots=ggplot(data=.) + 
+ geom_col(aes(x=as.factor(sym_ev2),y=mean.rel,fill=as.factor(sym_ev2)))+
+  scale_fill_manual(values=params$palette_8)+
+  ylab("")+xlab("")+
+     theme_classic(base_family = "Calibri Light",base_size = 25)+
+    theme(legend.position="none",
+        panel.background = element_rect(fill = "white", colour = "black"),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+   plot.margin = margin(t = 0, r = 0,b = 0,l = 0)) +
+  labs(x = "", y = ""))
+
+p.abs<-
+cor.solution %>% 
+group_by(expType) %>% 
+do(plots=ggplot(data=.) + 
+ geom_col(aes(x=as.factor(sym_ev2),y=mean.abs,fill=as.factor(sym_ev2)))+
+  scale_fill_manual(values=params$palette_8)+
+  ylab("")+xlab("")+
+     theme_classic(base_family = "Calibri Light",base_size = 25)+
+    theme(legend.position="none",
+        panel.background = element_rect(fill = "white", colour = "black"),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+   plot.margin = margin(t = 0, r = 0,b = 0,l = 0))+
+  labs(x = "", y = ""))
+
+```
+
+### Figure 2
+```{r,fig.height=10.5,fig.width=18, dpi=300, out.width="100%", message=FALSE, warning=FALSE, echo=FALSE,dev = 'svg'}
+# FIG E1
+solutions <- p.abs$plots[[1]]/(p.rel$plots[[3]] + plot_layout(tag_level = 'new'))
+wrap_plots(solutions, p.zigzag$plots[[2]], p.choiceSet$plots[[2]],p.raster.legend$plots[[2]],p.val.arrow$plots[[2]], p.stackB2$plots[[1]])+ 
+  #plot_annotation(tag_levels = c('a',list("","")))
+plot_annotation(tag_levels = c('a'))& 
+  theme(plot.tag.position = c(0, 0.98),
+        plot.tag = element_text(hjust = 0, vjust = 0))
+
+```
+
+### Figure 3
+```{r,fig.height=10.5,fig.width=18, dpi=300, out.width="100%", message=FALSE, warning=FALSE, echo=FALSE,dev = 'svg'}
+
+# FIG E2-E3
+(p.zigzag$plots[[3]]+p.raster$plots[[3]]+p.val$plots[[3]])/(p.zigzag.arrow$plots[[1]]+p.raster.legend$plots[[1]]+p.val.arrow$plots[[1]])    +
+  #plot_layout(guides="collect")+
+  plot_annotation(tag_levels = 'a')& 
+  theme(plot.tag.position = c(0, 0.98),
+        plot.tag = element_text(hjust = 0, vjust = 0))
+```
+
+### Figure 4
+```{r,fig.height=10.5,fig.width=18, dpi=300, out.width="100%", message=FALSE, warning=FALSE, echo=FALSE,dev = 'svg'}
+# FIG E4-E5
+(p.zigzag$plots[[4]]+p.raster$plots[[4]]+p.val$plots[[4]])/(p.zigzag.arrow$plots[[5]]+p.raster.legend$plots[[5]]+p.val.arrow$plots[[5]])    +
+  plot_annotation(tag_levels = 'a')& 
+  theme(plot.tag.position = c(0, 0.98),
+        plot.tag = element_text(hjust = 0, vjust = 0))
+```
+
+### Figure 5
+```{r,fig.height=10.5,fig.width=18, dpi=300, out.width="100%", message=FALSE, warning=FALSE, echo=FALSE,dev = 'svg'}
+# FIG CHOICE SETS
+wrap_plots(p.choiceSet$plots[c(3,1,4,5,6,7)]) + plot_annotation(tag_levels = 'a')& 
+  theme(plot.tag.position = c(0, 0.98),
+        plot.tag = element_text(hjust = 0, vjust = 0))
+```
+
+### Figure 6
+```{r,fig.height=10.5,fig.width=18, dpi=300, out.width="100%", message=FALSE, warning=FALSE, echo=FALSE,dev = 'svg'}
+# FIG E6-E7
+(p.zigzag.ref.6+p.raster$plots[[6]]+p.val.ref.6)/(p.zigzag.ref.7.arrow+p.raster.legend$plots[[7]]+p.val.ref.7.arrow) +
+   # plot_layout(guides="collect")+
+  plot_annotation(tag_levels = 'a')& 
+  theme(plot.tag.position = c(0, 0.98),
+        plot.tag = element_text(hjust = 0, vjust = 0))
+```
+
+
+
+

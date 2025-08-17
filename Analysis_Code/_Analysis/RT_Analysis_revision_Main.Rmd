@@ -1,0 +1,370 @@
+---
+title: "Results - Main Analyses"
+output: html_document
+params:
+  data_path: "D:\\Magdalena\\Projects\\Retrospective Theory\\RT_Analysis\\Retrospective-Theory\\data_RT_Anon_25.Rds"
+editor_options: 
+  chunk_output_type: console
+---
+
+GLMM analyses of the Preference Task and Valuation Task. Beware - the GLMM analyses might take a while to run.
+
+```{r Load Packages,include=FALSE}
+# models
+library(mgcv)
+library(afex)
+library(glmmTMB)
+library(emmeans)
+
+# model diagnostics
+library(DHARMa)
+library(performance)
+
+# data manipulation
+library(broom)
+library(tidyverse)
+```
+
+```{r Load Data,include=FALSE}
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# CAREFUL CODE USES CACHE:
+# If data file has been modified, it's necessary to clean cache
+# --> Otherwise parts of the code might not be updated
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+data<-readRDS(params$data_path)
+```
+
+```{r define functions,include=FALSE, cache = TRUE}
+mean_per_group <- function(df,exp,group_vars,sum_vars){
+  acc_overall <-
+    df %>% 
+    group_by(across({{group_vars}})) %>% 
+    summarise(across(any_of(sum_vars), list(mean = mean, sd = sd, sem = stderror))) %>% 
+    ungroup()
+}
+
+model_summary <- function(model, perf=1, dharma=1, anova=1, afex=FALSE, gam=FALSE){
+  perf.plot <- NA
+  DHARMa.plot <- NA
+  Anova.results <- NA
+  
+  if (afex==TRUE){
+    Anova.results <- model$anova_table
+    model = model$full_model
+  }
+  
+  if(perf == 1){perf.plot <- performance::check_model(model)}
+  if(dharma== 1){DHARMa.plot <- plot(DHARMa::simulateResiduals(model))}
+  if(anova==1&afex==FALSE&gam==FALSE){Anova.results <- car::Anova(model,type=3)}
+  if(anova==1&afex==FALSE&gam==TRUE){Anova.results <- mgcv::anova.gam(model)}
+
+  results <- list(perf.plot,DHARMa.plot,Anova.results)
+  return(results)
+}
+
+### SETS CONTRASTS GLOBALLY TO CONTR.SUM (makes it easy to interpret main effect vs interaction)
+set_sum_contrasts()
+```
+
+## Learning Task {.tabset}
+Analysis of the data from the learning task
+```{r Learning Task Analysis, include=FALSE, message=FALSE, warning=FALSE, cache=TRUE }
+learning<-list()
+
+# Transform overall learning accuracy into a beta distribution
+learning$acc <- 
+  data$learning %>% 
+  group_by(partID,expType,Day,TaskName) %>% 
+  summarise(resp.cor_mean = mean(resp.cor))%>% 
+  mutate(across(c("resp.cor_mean"),
+                ~case_when(.x<0.5~.x+0.00001,
+                           .x>0.5~.x-0.00001,
+                           TRUE~.x),
+                  .names = "{.col}.beta"))
+
+# Compare learning accuracy between experiments
+learning$acc.glm<- glmmTMB::glmmTMB(resp.cor_mean.beta~expType,
+                                           data= learning$acc,
+                                           family=glmmTMB::beta_family())
+```
+
+### Main Effects
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+car::Anova(learning$acc.glm, type=3)
+```
+
+### Contrasts & Marginal Means
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+emmeans::emmeans(learning$acc.glm,"trt.vs.ctrl"~expType ,type="response",adjust="mvt")
+```
+
+### Diagnostics
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+DHARMa::simulateResiduals(learning$acc.glm) %>% plot()
+```
+
+
+## Preference Task: Choice Set {.tabset}
+Analysis of the data from the preference task 
+```{r Choice Sets, include=FALSE, message=FALSE, warning=FALSE, cache=TRUE }
+pref.chSet <- list()
+
+# Accuracy - Preference Data - by Choice Set
+pref.chSet$table <- 
+  data$preference %>% 
+  group_by(partID,expType,Day,TaskName,relative) %>% 
+  summarise(acc=mean(resp.cor)) %>% 
+  group_by(expType,Day,TaskName,relative) %>% 
+  summarise(across(c(acc), list(mean = mean, sd = sd))) %>% 
+  mutate(across(ends_with(c("mean","sd","sem")),~signif(.x,digits = 3))) %>% 
+  arrange(Day)
+
+# Compare accuracy in the preference between experiments and choice sets
+pref.chSet$glm <- afex::mixed(resp.cor~expType*relative*Day.f+(1|partID),
+                              data=data$preference,
+                              family="binomial",method="LRT", 
+                              control=
+                                glmerControl(
+                                   optimizer="bobyqa",
+                                   optCtrl = list(maxfun=100000)))
+```
+
+### Main Effects
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+print(pref.chSet$glm)
+```
+
+### Contrasts: experiments (Day 1)
+```{r warning=FALSE, message=FALSE}
+emmeans::emmeans(pref.chSet$glm ,"trt.vs.ctrl"~expType ,type="response",adjust="mvt", at = list(Day.f=c("1")))
+```
+
+### Contrasts: Choice Set by Experiment (Day 1)
+```{r warning=FALSE, message=FALSE}
+emmeans::emmeans(pref.chSet$glm ,"trt.vs.ctrlk"~relative|expType ,type="response",adjust="mvt", at = list(Day.f=c("1")))
+```
+
+### Contrasts: Choice Set by Experiment (Day 2)
+```{r warning=FALSE, message=FALSE}
+emmeans::emmeans(pref.chSet$glm ,"trt.vs.ctrlk"~relative|expType ,type="response",adjust="mvt", at = list(Day.f=c("2")))
+```
+
+### Contrasts: Choice Set by Experiment (E3 vs E7)
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+emmeans::emmeans(pref.chSet$glm ,"trt.vs.ctrl"~expType|relative ,type="response",adjust="mvt", at = list(Day.f=c("1"),expType=c("E3","E7")))
+```
+
+### Diagnostics
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+DHARMa::simulateResiduals(pref.chSet$glm$full_model) %>% plot()
+```
+
+
+## Preference Task: Contrasts: BC vs FG by Experiment (E3 vs E6){.tabset}
+```{r warning=FALSE, message=FALSE, cache=TRUE}
+pref.E3E6.acc.glm <- afex::mixed(resp.cor~expType*Day.f*ChoiceType.f+(1|partID),
+                                data=data$preference %>% 
+                                  filter(expType%in%c("E3","E6")) %>% 
+                                  filter(ChoiceType.f%in%c("32","76")),
+                                family="binomial",method="LRT", 
+                                control=glmerControl(optimizer="bobyqa"))
+```
+
+### Main Effects
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+print(pref.E3E6.acc.glm)
+```
+
+### Contrasts & Marginal Means
+```{r warning=FALSE, message=FALSE}
+emmeans::emmeans(pref.E3E6.acc.glm  ,"trt.vs.ctrl"~expType|ChoiceType.f ,type="response",adjust="mvt", at = list(Day.f=c("1")))
+```
+
+### Diagnostics
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+DHARMa::simulateResiduals(pref.E3E6.acc.glm$full_model) %>% plot()
+```
+
+
+## Value Recollection: Accuracy {.tabset}
+Analysis of the data from the value recollection task (E2-E7) 
+```{r Value Recollection Task, include=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
+valuation <- list()
+
+# Accuracy - Overall - GLM
+valuation$glm<- afex::mixed(resp.cor ~ expType*Day.f + (1|partID),
+                            data=data$valuation %>% filter(expType!="E1"),
+                            family="binomial", method="LRT", 
+                            control=glmerControl(optimizer="bobyqa"))
+
+# Accuracy - Reward - GLM
+valuation$rew_glm<- afex::mixed(resp_rewCor ~ expType*Day.f + (1|partID),
+                              data=data$valuation %>% filter(!expType%in%c("E1","E2")),
+                              family="binomial", method="LRT", 
+                              control=glmerControl(optimizer="bobyqa"))
+
+# Accuracy - Probability - GLM
+valuation$prob_glm<- afex::mixed(resp_probCor_i ~ expType*Day.f + (1|partID),
+                              data=data$valuation %>% filter(!expType%in%c("E1","E2")),
+                              family="binomial", method="LRT", 
+                              control=glmerControl(optimizer="bobyqa"))
+```
+
+### Main Effects
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+print(valuation$glm)
+```
+
+### Contrasts
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+emmeans::emmeans(valuation$glm,"trt.vs.ctrl"~expType|Day.f,
+                 type="response",adjust="mvt")
+```
+
+### Diagnostics 
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+DHARMa::simulateResiduals(valuation$glm$full_model) %>% plot()
+```
+
+## Value Recollection - Magnitude Only: Accuracy {.tabset}
+### Main Effects
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+print(valuation$rew_glm)
+```
+
+### Contrasts - Reward
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+emmeans::emmeans(valuation$rew_glm,"trt.vs.ctrl"~expType|Day.f,
+                 type="response",adjust="mvt")
+```
+
+### Diagnostics - Reward
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+DHARMa::simulateResiduals(valuation$rew_glm$full_model) %>% plot()
+```
+
+## Value Recollection - Probability Only: Accuracy {.tabset}
+### Main Effects
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+print(valuation$prob_glm)
+```
+
+### Contrasts - Prob
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+emmeans::emmeans(valuation$prob_glm,"trt.vs.ctrl"~expType|Day.f,
+                 type="response",adjust="mvt")
+
+```
+
+### Diagnostics - Prob
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+DHARMa::simulateResiduals(valuation$prob_glm$full_model) %>% plot()
+```
+
+
+## Value Recollection: Ranking {.tabset}
+```{r Value Recollection Task -Ranks II ,include=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
+valrank <- list()
+
+valrank$data <-
+  data$valuation %>% 
+  filter(expType!="E1") %>% 
+  mutate(symID.f=as.factor(symID.f),
+         expType=as.factor(expType),
+         Day.f= as.factor(Day.f),
+         partID = as.factor(partID))
+  
+# Individual responses E2-E7 (Ranks)
+valrank$gam2<- mgcv::gam(rank_obj_1 ~ symID.f*expType + s(partID, bs="re"),
+                                  data=valrank$data %>% filter(Day==1) , family = mgcv::ocat(R=9))
+
+```
+
+### Contrasts - Day 1
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+emmeans::emmeans(valrank$gam2,"consec"~symID.f|expType,
+                 type="response",adjust="mvt",nuisance=s(partID, bs="re"))
+```
+
+
+### Contrasts E6 vs E3 (Day1)
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+emm <- emmeans::emmeans(valrank$gam2,~symID.f|expType,
+                        nuisance=s(partID, bs="re"),
+                 at = list(expType=c("E3","E6"),symID.f = c("B","C","F","G")))
+
+contrast(emm, interaction = c(expType = "trt.vs.ctrl", symID.f = "consec"), 
+                   by = NULL, adjust="mvt",type="response")
+
+
+```
+
+### Diagnostics - Day 1
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+DHARMa::simulateResiduals(valrank$gam2) %>% plot()
+```
+
+ 
+
+## Recollection Task: E1 : Accuracy  {.tabset}
+Assess participant's accuracy in remembering low and high probability symbols
+```{r E1, include=FALSE, message=FALSE, warning=FALSE, cache=TRUE }
+E1 <- list()
+
+# E1 - accuracy low and high probability symbols
+E1$accuracy <-
+  subset(data$valuation,expType=="E1") %>% 
+  filter(Day==1) %>% 
+  mutate(sym_prob.f = ifelse(sym_prob==25,"low","high"))
+  
+E1$accuracy_glm<- afex::mixed(resp.cor ~ sym_prob.f+ (1|partID),
+                              data=E1$accuracy,family="binomial", method="LRT")
+```
+
+### Main Effects
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+print(E1$accuracy_glm)
+```
+
+### Contrasts & Marginal Means
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+emmeans::emmeans(E1$accuracy_glm,"pairwise"~sym_prob.f,type="response")
+```
+
+### Diagnostics
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+DHARMa::simulateResiduals(E1$accuracy_glm$full_model) %>% plot()
+```
+
+## Recollection Task: E1 : Valence {.tabset}
+```{r Valence, include=FALSE, message=FALSE, warning=FALSE, cache=TRUE }
+E1$stacks<-
+  subset(data$valuation,expType=="E1") %>% 
+  filter(Day==1) %>% 
+  filter(resp_cor==0) %>% 
+  mutate(resp_val =  as.factor(ifelse(reward_ch<0,0,1)),
+         valence = as.factor(ifelse(sym_reward<0,"N","P"))) %>% 
+  filter(symID%in%c(2,4,5,7)) %>% 
+  mutate(across(c(partID,symID.f,expType), ~ as.factor(.x)),
+         rank_obj_1 = rank_obj+1)
+
+E1$stacks_glm <- afex::mixed(resp_val ~ valence + (1|partID), data=E1$stacks,family="binomial", method="LRT")
+```
+
+### Main Effects
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+print(E1$stacks_glm)
+```
+
+### Contrasts & Marginal Means
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+emmeans::emmeans(E1$stacks_glm,"pairwise"~valence,type="response")
+```
+
+### Diagnostics
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+DHARMa::simulateResiduals(E1$stacks_glm$full_model) %>% plot()
+```
+
+

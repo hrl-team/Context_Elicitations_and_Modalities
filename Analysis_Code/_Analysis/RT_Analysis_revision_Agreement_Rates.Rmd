@@ -1,0 +1,275 @@
+---
+title: "Results - Agreement Rates"
+output: html_document
+params:
+  data_path: "D:\\Magdalena\\Projects\\Retrospective Theory\\RT_Analysis\\Retrospective-Theory\\data_RT_Anon_25.Rds"
+editor_options: 
+  chunk_output_type: console
+---
+
+Analyses of agreement rates between preference and value recollection tasks, as well as agreement between responses on Day 1 and Day 2. 
+
+```{r Load Packages,include=FALSE}
+# models
+library(mgcv)
+library(afex)
+library(glmmTMB)
+library(emmeans)
+
+# model diagnostics
+library(DHARMa)
+library(performance)
+
+# data manipulation
+library(broom)
+library(tidyverse)
+```
+
+```{r Load Data,include=FALSE}
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# CAREFUL CODE USES CACHE:
+# If data file has been modified, it's necessary to clean cache
+# --> Otherwise parts of the code might not be updated
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+data<-readRDS(params$data_path)
+```
+
+
+## Preference-Recollection Task {.tabset}
+```{r Val pref desciptives, cache = TRUE, include=FALSE, warning=FALSE, message=FALSE}
+prefVal <- list()
+
+# Prepare data set for the comparison ##############################################
+
+#---Helper files -------------------------------------------
+prefVal$d.pref <-
+  data$preference %>% 
+  select(partID,Day,expType,resp.cor,ev_cor,ev_incor,ChoiceType.f,relative) %>% 
+  pivot_longer(cols = c(ev_cor, ev_incor), names_to=c(".value","was_correct"),names_sep = "([_])") 
+
+prefVal$d.val<-
+  data$valuation %>%
+  group_by(partID,sym_ev,Day,expType) %>% 
+  summarise(val.rank = mean(rank_obj))%>% 
+  rename(ev = sym_ev) %>% 
+  ungroup()
+
+
+#---Final Data Set -------------------------------------------
+prefVal$data <-
+  merge(prefVal$d.pref,prefVal$d.val) %>% 
+  mutate(expType=factor(expType,levels=c("E1","E2","E3","E4","E5","E6","E7"))) %>% 
+  select(partID,expType,Day,ev,ChoiceType.f,resp.cor,val.rank,was_correct,relative) %>% 
+  pivot_wider(names_from = was_correct,values_from=c(ev,val.rank),names_sep = "_") %>% 
+  mutate(resp.cor.val = case_when(val.rank_cor>val.rank_incor~1,
+                                  val.rank_cor==val.rank_incor~0.5,
+                                  val.rank_cor<val.rank_incor~0)) %>% 
+  mutate(agree = case_when(resp.cor.val == resp.cor ~ 1,
+                           resp.cor.val != resp.cor &  resp.cor.val !=0.5 ~ 0,
+                           resp.cor.val != resp.cor &  resp.cor.val ==0.5 ~ 0.5),
+         agree_strict = ifelse(agree == 0.5,0,agree),
+         Day.f = as.factor(Day)) %>% 
+  rowwise() %>% 
+  mutate(agree_prob = rbinom(1,1,agree)) %>% 
+  ungroup()
+
+# Calculate agreement ####
+prefVal$acc.partID<- 
+  prefVal$data %>% 
+  mutate(expType=factor(expType,levels=c("E1","E2","E3","E4","E5","E6","E7"))) %>% 
+  group_by(partID,expType,Day) %>% 
+  summarise(agree_mean = mean(agree))
+
+```
+
+### Agreement Rates 
+```{r warning=FALSE, message=FALSE, echo=FALSE, cache = TRUE}
+prefVal$acc.expType<- 
+  prefVal$acc.partID%>% 
+  group_by(expType,Day) %>% 
+  summarise(mean = mean(agree_mean),
+            sd   = sd(agree_mean)) %>% 
+   mutate(across(ends_with(c("mean","sd")),~signif(.x,digits = 3))) %>% 
+  arrange(Day)
+
+knitr::kable(prefVal$acc.expType)
+```
+
+### T-tests
+```{r warning=FALSE, message=FALSE, echo=FALSE, cache = TRUE}
+# T-tests ####
+prefVal$ttest <-
+  prefVal$acc.partID %>% 
+  group_by(expType,Day,) %>% 
+  do(broom::tidy(t.test(.$agree_mean,mu=0.5))) %>%
+  mutate(across(c("estimate","p.value","statistic"),~signif(.x,digits = 3))) %>% 
+  arrange(Day)
+
+knitr::kable(prefVal$ttest)
+```
+
+### Cohen's d
+```{r warning=FALSE, message=FALSE, echo=FALSE, cache = TRUE}
+# Cohen's d ####
+prefVal$cohen <-
+  prefVal$acc.partID %>% 
+  group_by(expType,Day) %>% 
+  do(data.frame(cohen=lsr::cohensD(.$agree_mean,mu=0.5))) %>% 
+   mutate(across(ends_with(c("cohen")),~signif(.x,digits = 3)))%>% 
+  arrange(Day) 
+
+knitr::kable(prefVal$cohen)
+```
+
+
+### GLM - model
+```{r Val pref glms, cache = TRUE, warning=FALSE, message=FALSE}
+# GLM ####
+prefVal$glm<- afex::mixed(agree_prob ~ expType*Day.f + (1|partID),
+                              data=prefVal$data,family="binomial", method="LRT", 
+                              control=glmerControl(optimizer="bobyqa",optCtrl = list(maxfun = 100000)))
+
+print(prefVal$glm)
+```
+
+### GLM - Diagnostics
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+DHARMa::simulateResiduals(prefVal$glm$full_model) %>% plot()
+```
+
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+#emmeans::emmeans(prefVal$glm,"trt.vs.ctrl"~expType|Day.f,type="response")
+#emmeans::emmeans(prefVal$glm,"trt.vs.ctrl"~Day.f,type="response")
+```
+
+
+## Preference: Day 1 vs Day 2 {.tabset}
+```{r, cache = TRUE, include=FALSE, warning=FALSE, message=FALSE}
+
+simpref<-list()
+
+simpref$data<-
+  data$preference %>%
+  mutate(expType=factor(expType,levels=c("E1","E2","E3","E4","E5","E6","E7"))) %>% 
+  filter(partID%in%subset(data$preference,Day==2)$partID) %>% 
+  select(expType,partID,ChoiceType.f,Day.f,resp.cor) %>% 
+  pivot_wider(names_from = Day.f,values_from = resp.cor,names_prefix = "D") %>% 
+  mutate(agree = ifelse(D1==D2,1,0))
+
+```
+
+### Mean + SD
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+simpref$MeanSD<- 
+  simpref$data %>% 
+  group_by(expType,partID) %>% 
+  summarise(agree_mean = mean(agree)) %>% 
+  group_by(expType) %>% 
+  summarise(mean = mean(agree_mean), sd=sd(agree_mean)) %>% 
+  mutate(across(c("mean","sd"),~signif(.x,digits = 3)))
+
+knitr::kable(simpref$MeanSD)
+```
+
+### T-test
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+simpref$ttest<- 
+  simpref$data %>%
+  group_by(expType,partID) %>% 
+  summarise(agree_mean = mean(agree)) %>% 
+  group_by(expType) %>% 
+  do(broom::tidy(t.test(.$agree_mean,mu=0.5))) %>% 
+  mutate(across(c("estimate","p.value","statistic","conf.low","conf.high"),~signif(.x,digits = 3)))
+
+knitr::kable(simpref$ttest)
+```
+
+### Cohen's d
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+
+simpref$cohen<- 
+  simpref$data %>% 
+  group_by(expType,partID) %>% 
+  summarise(agree_mean = mean(agree)) %>% 
+  group_by(expType) %>% 
+  do(data.frame(cohen=lsr::cohensD(.$agree_mean,mu=0.5))) %>% 
+  mutate(across(c("cohen"),~signif(.x,digits = 3)))
+
+knitr::kable(simpref$cohen)
+```
+
+
+## Value Recollection: Day 1 vs Day 2 {.tabset}
+```{r, cache = TRUE, include=FALSE, warning=FALSE, message=FALSE}
+
+simval<-list()
+
+# --- helpers  -----------------------------------------------
+d.pref <-
+  data$preference %>% 
+  select(partID,Day,expType,resp.cor,ev_cor,ev_incor,ChoiceType.f,relative) %>% 
+  pivot_longer(cols = c(ev_cor, ev_incor), names_to=c(".value","was_correct"),names_sep = "([_])") 
+
+d.val<-
+  data$valuation %>%
+  group_by(partID,sym_ev,Day,expType) %>% 
+  summarise(val.rank = mean(rank_obj))%>% 
+  rename(ev = sym_ev) %>% 
+  ungroup()
+
+#---Final Data Set -------------------------------------------
+simval$data <-
+  merge(d.pref,d.val) %>% 
+  mutate(expType=factor(expType,levels=c("E1","E2","E3","E4","E5","E6","E7"))) %>% 
+  select(partID,expType,Day,ev,ChoiceType.f,resp.cor,val.rank,was_correct,relative) %>% 
+  pivot_wider(names_from = was_correct,values_from=c(ev,val.rank),names_sep = "_") %>% 
+  mutate(resp.cor.val = case_when(val.rank_cor>val.rank_incor~1,
+                                  val.rank_cor==val.rank_incor~0.5,
+                                  val.rank_cor<val.rank_incor~0)) %>% 
+  select(expType,partID,ChoiceType.f,Day,resp.cor.val) %>% 
+  pivot_wider(names_from = Day,values_from = resp.cor.val,names_prefix = "D") %>% 
+  filter(!is.na(D2)) %>% 
+  mutate(agree = ifelse(D1==D2,1,0))
+```
+
+### Mean + SD
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+simval$MeanSD<- 
+  simval$data %>% 
+  group_by(expType,partID) %>% 
+  summarise(agree_mean = mean(agree)) %>% 
+  group_by(expType) %>% 
+  summarise(mean = mean(agree_mean), sd=sd(agree_mean)) %>% 
+  mutate(across(c("mean","sd"),~signif(.x,digits = 3)))
+
+knitr::kable(simval$MeanSD)
+```
+
+### T-test
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+simval$ttest<- 
+  simval$data %>% 
+  group_by(expType,partID) %>% 
+  summarise(agree_mean = mean(agree)) %>% 
+  group_by(expType) %>% 
+  do(broom::tidy(t.test(.$agree_mean,mu=0.5))) %>% 
+  mutate(across(c("estimate","p.value","statistic","conf.low","conf.high"),~signif(.x,digits = 3)))
+
+knitr::kable(simval$ttest)
+```
+
+### Cohen's d
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+
+simval$cohen<- 
+  simval$data %>% 
+  group_by(expType,partID) %>% 
+  summarise(agree_mean = mean(agree)) %>% 
+  group_by(expType) %>% 
+  do(data.frame(cohen=lsr::cohensD(.$agree_mean,mu=0.5))) %>% 
+  mutate(across(c("cohen"),~signif(.x,digits = 3)))
+
+knitr::kable(simval$cohen)
+```
+
