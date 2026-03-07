@@ -2,12 +2,15 @@
 title: "Results - Main Analyses"
 output: html_document
 params:
-  data_path: "D:\\Magdalena\\Projects\\Retrospective Theory\\RT_Analysis\\Retrospective-Theory\\data_RT_Anon_25.Rds"
+  data_path: "..\\_Data\\data_RT_Anon_25.Rds"
 editor_options: 
   chunk_output_type: console
 ---
 
-GLMM analyses of the Preference Task and Valuation Task. Beware - the GLMM analyses might take a while to run.
+GLMM analyses of the Preference Task and Valuation Task. 
+Beware: 
+ - The code uses cache - chunks that had not been modified are loaded from the cache on knitting.
+ - Some of the GLMM analyses might take a while to run.
 
 ```{r Load Packages,include=FALSE}
 # models
@@ -81,7 +84,7 @@ learning$acc <-
                 ~case_when(.x<0.5~.x+0.00001,
                            .x>0.5~.x-0.00001,
                            TRUE~.x),
-                  .names = "{.col}.beta"))
+                  .names = "{.col}.beta")) 
 
 # Compare learning accuracy between experiments
 learning$acc.glm<- glmmTMB::glmmTMB(resp.cor_mean.beta~expType,
@@ -142,12 +145,36 @@ emmeans::emmeans(pref.chSet$glm ,"trt.vs.ctrl"~expType ,type="response",adjust="
 
 ### Contrasts: Choice Set by Experiment (Day 1)
 ```{r warning=FALSE, message=FALSE}
-emmeans::emmeans(pref.chSet$glm ,"trt.vs.ctrlk"~relative|expType ,type="response",adjust="mvt", at = list(Day.f=c("1")))
+emmeans::emmeans(pref.chSet$glm ,~relative|expType,, at = list(Day.f=c("1"))) %>% 
+  contrast("trt.vs.ctrlk",type="response",adjust="mvt") %>%   
+  summary(infer=c(T,T)) %>% 
+  transform(OR = odds.ratio %>% signif(.,3),
+            LCI = asymp.LCL %>% signif(.,3),
+            UCI = asymp.UCL %>% signif(.,3),
+            z.ratio= signif(z.ratio,3), 
+            p.value = round(p.value,3)) %>% 
+ mutate(expType=relevel(expType,ref="E2"),
+        expType=relevel(expType,ref="E1"),
+        CI = paste0("[",LCI,", ",UCI,"]")) %>% 
+  dplyr::select(expType, contrast, odds.ratio, OR, CI,z.ratio,p.value) %>%
+  arrange(expType, contrast)
 ```
 
 ### Contrasts: Choice Set by Experiment (Day 2)
 ```{r warning=FALSE, message=FALSE}
-emmeans::emmeans(pref.chSet$glm ,"trt.vs.ctrlk"~relative|expType ,type="response",adjust="mvt", at = list(Day.f=c("2")))
+emmeans::emmeans(pref.chSet$glm ,~relative|expType,, at = list(Day.f=c("2"))) %>% 
+  contrast("trt.vs.ctrlk",type="response",adjust="mvt") %>%   
+  summary(infer=c(T,T)) %>% 
+  transform(OR = odds.ratio %>% signif(.,3),
+            LCI = asymp.LCL %>% signif(.,3),
+            UCI = asymp.UCL %>% signif(.,3),
+            z.ratio= signif(z.ratio,3), 
+            p.value = round(p.value,3)) %>% 
+ mutate(expType=relevel(expType,ref="E2"),
+        expType=relevel(expType,ref="E1"),
+        CI = paste0("[",LCI,", ",UCI,"]")) %>% 
+  dplyr::select(expType, contrast, odds.ratio, OR, CI,z.ratio,p.value) %>%
+  arrange(expType, contrast)
 ```
 
 ### Contrasts: Choice Set by Experiment (E3 vs E7)
@@ -281,17 +308,49 @@ valrank$gam2<- mgcv::gam(rank_obj_1 ~ symID.f*expType + s(partID, bs="re"),
 
 ```
 
-### Contrasts - Day 1
+### Descriptives (Mean + SD)
 ```{r warning=FALSE, message=FALSE, echo=FALSE}
-emmeans::emmeans(valrank$gam2,"consec"~symID.f|expType,
-                 type="response",adjust="mvt",nuisance=s(partID, bs="re"))
+valrank$partMean<-
+  valrank$data %>% 
+  filter(Day == 1) %>% 
+  group_by(partID,expType,Day,TaskName,symID.f) %>% 
+  summarise(mean = mean(rank_obj))
+
+valrank$partMean %>% 
+  group_by(expType,Day,TaskName,symID.f) %>% 
+  summarise(mean_rank = mean(mean) %>% round(2),
+            sd = sd(mean)%>% round(2)) %>% 
+  mutate(expType=relevel(expType,ref="E2")) %>% 
+  arrange(symID.f,expType)
 ```
 
+### Contrasts - Day 1 - Estimated Rank Difference
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+emmeans::emmeans(valrank$gam2,"consec"~symID.f|expType,
+                 type="response",adjust="mvt")
+```
+
+### Contrasts - Day 1 - Odds Ratios
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+
+emmeans::emmeans(valrank$gam2,~symID.f|expType)%>% 
+contrast(em,"consec",adjust="mvt") %>% 
+  summary(infer=c(T,T)) %>% 
+  transform(OR = exp(estimate) %>% signif(.,3),
+            LCI = exp(lower.CL) %>% signif(.,3),
+            UCI = exp(upper.CL) %>% signif(.,3),
+            t.ratio= signif(t.ratio,3), 
+            p.value = round(p.value,3)) %>% 
+  rename(symIDs = symID.f_consec) %>% 
+ mutate(expType=relevel(expType,ref="E2"),
+        CI = paste0("[",LCI,", ",UCI,"]")) %>% 
+  dplyr::select(symIDs,expType, estimate, OR, CI,t.ratio,p.value) %>%
+  arrange(symIDs,expType)
+```
 
 ### Contrasts E6 vs E3 (Day1)
 ```{r warning=FALSE, message=FALSE, echo=FALSE}
 emm <- emmeans::emmeans(valrank$gam2,~symID.f|expType,
-                        nuisance=s(partID, bs="re"),
                  at = list(expType=c("E3","E6"),symID.f = c("B","C","F","G")))
 
 contrast(emm, interaction = c(expType = "trt.vs.ctrl", symID.f = "consec"), 
@@ -299,6 +358,7 @@ contrast(emm, interaction = c(expType = "trt.vs.ctrl", symID.f = "consec"),
 
 
 ```
+
 
 ### Diagnostics - Day 1
 ```{r warning=FALSE, message=FALSE, echo=FALSE}

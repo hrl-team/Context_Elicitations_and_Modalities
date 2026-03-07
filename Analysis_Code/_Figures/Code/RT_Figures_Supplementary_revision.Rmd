@@ -2,7 +2,7 @@
 title: "Figures: Supplementary"
 output: html_document
 params:
-  data_path: D:\Magdalena\Projects\Retrospective Theory\RT_Analysis\Retrospective-Theory\data_RT_Anon.Rds
+  data_path: "..\\..\\_Data\\data_RT_Anon_25.Rds"
   palette_8: !r c("#045361","#076d7e","#0B889D","#0E99B0","#fecd00","#FBBC00","#F9AC00","#f69b00")
   palette_5: !r c("#045361","#0E99B0","gray85","#fecd00","#f69b00")
   palette_4: !r c("#045361","#076d7e","#0B889D","#0E99B0","#fecd00","#FBBC00","#F9AC00","#f69b00")[c(1,3,6,8)]
@@ -15,11 +15,11 @@ Here is a list of figures used in the supplementary text (Fig.2-6).
 ```{r Load Packages,include=FALSE, message=FALSE,warning=FALSE}
 library(data.table)
 library(tidyverse)
-library(extrafont)
+#library(extrafont)
 library(ggpubr)
 library(ggh4x)
 library(patchwork)
-loadfonts()
+#loadfonts()
 ```
 
 ```{r get Data,include=FALSE, message=FALSE,warning=FALSE}
@@ -270,28 +270,43 @@ probval<-
 data$valuation%>% 
   filter(!expType%in%c("E1","E2")) %>% 
   mutate(val_error = ifelse(sign(resp_rew)==sign(sym_reward),"wrong","correct"),
-         resp_valence = ifelse(resp_rew<0,"-","+")) 
+         resp_valence = ifelse(resp_rew<0,"-","+"))
 
-beeswarm.2<-
-  list(
-  ggbeeswarm::geom_quasirandom(varwidth = TRUE,groupOnX=TRUE,color="gray85",alpha=0.5, stroke=2.5, shape=0),
-  geom_rect(aes(xmin=1-0.5, xmax=1, ymin=-0.1, ymax=1.1), color="white", fill="white", alpha=1),
-  geom_rect(aes(xmin=2-0.5, xmax=2, ymin=-0.1, ymax=1.1), color="white", fill="white", alpha=1))
+probval.ann<-
+  probval %>% 
+  group_by(expType,symID.f) %>%
+  mutate(expN = n()) %>% 
+  group_by(expType,symID.f,resp_valence,expN,val_error) %>% 
+  summarise(n=n()) %>% 
+  mutate(prop=round(n/expN,2))
+
 
 f.probval<-
-  ggplot(aes(x=resp_valence,y=resp_prob/100, color=as.factor(val_error)),data=probval)+
-  beeswarm.2+
+
+    ggplot(aes(x=resp_valence,y=resp_prob/100, color=as.factor(val_error)),data=probval)+
+  see::geom_violinhalf(scale="width",color="transparent", fill="grey80",adjust=1.5) +
+  
+geom_text(
+    data = probval.ann,
+    aes(x = resp_valence, y = -0.13, label = prop, color = as.factor(val_error)),
+    size.unit = "pt",
+    size=18,
+    show.legend = FALSE
+  ) +
+
+  ggdist::stat_dots(color="gray30",position = position_nudge(x=+0.05),overflow="compress", scale=4/10)+
   geom_boxplot(position=position_nudge(x=-0.20), width=0.3,outlier.shape = NA,lwd=1,color=ss.col.viol,fill="transparent")+
   stat_summary(fun.data = "mean_se", geom = "point",fun.args = list(mult = 1),size=1.5,stroke=1.5)+
   stat_summary(fun.data = "mean_se", geom = "errorbar",fun.args = list(mult = 1),width=0.3,size=1.5)+
-  theme_classic(base_family = "Calibri Light",base_size = 25)+
+  theme_classic(base_family = "CalibriLight",base_size = 25)+
   theme(legend.position="none",
       panel.background = element_rect(fill = "white", colour = "black"),
       strip.background = element_blank())+
-  scale_y_continuous(expand = expansion(mult = .1))+
+  scale_y_continuous(expand = expansion(mult = .2),breaks=c(0,0.25, 0.5, 0.75,1))+
+  scale_x_discrete(expand = expansion(mult = c(1, 0)))+
   scale_color_manual(values=params$palette_4[c(1,4)])+
   facet_grid(expType~symID.f,scales = "free")+
-  geom_hline(yintercept=c(0.25,0.5,0.75), color = "gray70", linetype = "dashed")+
+  #geom_hline(yintercept=c(0.25,0.5,0.75), color = "gray70", linetype = "dashed")+
   labs(x = "valence estimate", y = "probability estimate")
 
 ```

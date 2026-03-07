@@ -2,7 +2,7 @@
 title: "Results - Supplementary Analyses"
 output: html_document
 params:
-  data_path: "D:\\Magdalena\\Projects\\Retrospective Theory\\RT_Analysis\\Retrospective-Theory\\data_RT_Anon_25.Rds"
+  data_path: "..\\_Data\\data_RT_Anon_25.Rds"
 editor_options: 
   chunk_output_type: console
 ---
@@ -108,7 +108,7 @@ val.probability$glm<- afex::mixed(resp_probCor_i~expType*val_error*Day.f+(1|part
 ```                               
 
 ### Main Effects
-``````{r warning=FALSE, message=FALSE, echo=FALSE}
+```{r warning=FALSE, message=FALSE, echo=FALSE}
 print(val.probability$glm)
 ```
 

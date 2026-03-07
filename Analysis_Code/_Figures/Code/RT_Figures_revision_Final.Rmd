@@ -2,7 +2,7 @@
 title: "Figures: Main Text"
 output: html_document
 params:
-  data_path: D:\Magdalena\Projects\Retrospective Theory\RT_Analysis\Retrospective-Theory\data_RT_Anon.Rds
+  data_path: "..\\..\\_Data\\data_RT_Anon_25.Rds"
   palette_8: !r c("#045361","#076d7e","#0B889D","#0E99B0","#fecd00","#FBBC00","#F9AC00","#f69b00")
   palette_5: !r c("#045361","#0E99B0","gray85","#fecd00","#f69b00")
   palette_4: !r c("#045361","#076d7e","#0B889D","#0E99B0","#fecd00","#FBBC00","#F9AC00","#f69b00")[c(1,3,6,8)]
@@ -14,11 +14,11 @@ Here is a list of figures used in the main text (Fig.2-6).
 ```{r Load Packages,include=FALSE, message=FALSE,warning=FALSE}
 library(data.table)
 library(tidyverse)
-library(extrafont)
+#library(extrafont)
 library(ggpubr)
 library(ggh4x)
 library(patchwork)
-loadfonts()
+#loadfonts()
 ```
 
 ```{r get Data,include=FALSE, message=FALSE,warning=FALSE}
@@ -169,12 +169,13 @@ bar.preference.choiceSet<-
   filter(Day==1) %>% 
   group_by(partID,expType,relative) %>% 
   summarise(accuracy = mean(resp.cor)) %>% 
-  mutate(sublabel = ifelse(relative=="Old","","new combinations"),
+  mutate(sublabel = ifelse(relative=="Old","","NewCombinations"),
          relative = case_when(relative  == "New_1" ~ "New1",
                               relative  == "New_2" ~ "New2",
                               relative  == "New_3" ~ "New3",
                               TRUE~relative),
          relative = relevel(as.factor(relative),"Old"))
+
 
 
 
@@ -186,7 +187,6 @@ p.choiceSet<-
   shared.graph.settings.pref+
   geom_hline(yintercept = 0.5, color = "gray70", linetype = "dashed")+
   scale_color_manual(values=params$palette_4[c(4,3,2,1)])+
- # scale_x_discrete(limits = c("Old", "New_1", "New_2", "New_3"),labels = c("Old", "New1", "New2", "New3"))+
   labs(x = "", y = "EV-maximising choices")+
   scale_y_continuous(expand = expansion(mult = .125),
                      breaks = c(0,0.25,0.5,0.75,1))+

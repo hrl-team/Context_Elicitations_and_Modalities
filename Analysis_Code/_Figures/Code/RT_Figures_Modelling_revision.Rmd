@@ -2,10 +2,10 @@
 title: "Figures: Modelling"
 output: html_document
 params:
-  data_path: D:\Magdalena\Projects\Retrospective Theory\RT_Analysis\Retrospective-Theory\data_RT_Anon_25.Rds
-  fits: D:\Magdalena\Projects\Retrospective Theory\RT_Analysis\Retrospective-Theory\fits_relative_best.Rds
-  sims: D:\Magdalena\Projects\Retrospective Theory\RT_Analysis\Retrospective-Theory\sims_relative.Rds
-  rec:  D:\Magdalena\Projects\Retrospective Theory\RT_Analysis\Retrospective-Theory\recovery_Relative_Final_25.Rds
+  data_path: "..\\..\\_Data\\data_RT_Anon_25.Rds"
+  fits: "..\\..\\_Data\\fits_relative_best.Rds"
+  sims: "..\\..\\_Data\\sims_relative.Rds"
+  rec:  "..\\..\\_Data\\recovery_Relative_Final_25.Rds"
   palette_fals: !r c("#076d7e", "#F9AC00")
 editor_options:
   chunk_output_type: console
@@ -15,11 +15,11 @@ Here are the figures for the modelling section of the Supplementary Material (Fi
 ```{r Load Packages,include=FALSE, message=FALSE,warning=FALSE}
 library(data.table)
 library(tidyverse)
-library(extrafont)
+#library(extrafont)
 library(ggpubr)
 library(ggh4x)
 library(patchwork)
-loadfonts()
+#loadfonts()
 ```
 
 ```{r get Data,include=FALSE, message=FALSE,warning=FALSE}
@@ -199,13 +199,14 @@ inversion.simple<-
 f.model.rec<-
   ggplot(aes(x=recovered,y=real,fill=perc),data=bind_rows(confusion.simple,inversion.simple))+geom_tile()+
     geom_label(color="white",aes(label=perc),label.size = 0,size=8)+
-    xlab("recovered model")+ylab("generative model")+
-    theme_classic(base_family = "Calibri Light",base_size = 25) + 
+    labs(x = "recovered model", y = "generative model", fill = "Proportion") +
+    theme_classic(base_family = "CalibriLight",base_size = 25) + 
     theme(panel.background = element_rect(fill = "white", colour = "black"),
-          legend.position = "none",
+          legend.position = "bottom",
           strip.background = element_blank(),
           strip.text = element_text(hjust = 0)) +
-    facet_wrap(~type)
+    facet_wrap(~type)+
+    scale_fill_continuous(limits=c(0,1), breaks=c(0,1))
 ```
 
 ```{r,fig.height=8,fig.width=18, dpi=300, out.width="100%", message=FALSE, warning=FALSE, echo=FALSE,dev = 'png'}
